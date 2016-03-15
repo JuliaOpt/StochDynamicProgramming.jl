@@ -76,7 +76,7 @@ function extensive_formulation(model,
                                                                                    
                 #Add constraints to define the cost at each node
                 @addConstraint(mod,
-                c[t,m] .== model.costFunctions(t,
+                c[t,m] == model.costFunctions(t,
                                                 [x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE],
                                                 [u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL],
                                                 laws[t].support[xi]))

@@ -36,8 +36,8 @@ const HORIZON = TF
 const COST = -66*2.7*(1 + .5*(rand(TF) - .5))
 
 # Constants:
-const VOLUME_MAX = 1000
-const VOLUME_MIN = -1000
+const VOLUME_MAX = 100
+const VOLUME_MIN = 0
 
 const CONTROL_MAX = round(Int, .4/7. * VOLUME_MAX) + 1
 const CONTROL_MIN = 0
@@ -57,15 +57,15 @@ alea_year = Array([7.0 7.0 8.0 3.0 1.0 1.0 3.0 4.0 3.0 2.0 6.0 5.0 2.0 6.0 4.0 7
 
 const X0 = [50, 50]
 
+Ax=[]
+Au=[]
+Aw=[]
+
+Cx=[]
+Cu=[]
+Cw=[]
+
 function generate_random_matrix_and_costs()
-    Ax=[]
-    Au=[]
-    Aw=[]
-
-    Cx=[]
-    Cu=[]
-    Cw=[]
-
     for i=1:TF
             push!(Ax, rand(DIM_STATES,DIM_STATES))
             push!(Au, rand(DIM_STATES,DIM_CONTROLS))
@@ -79,7 +79,6 @@ end
 
 generate_random_matrix_and_costs()
 
-
 # Define dynamic of the dam:
 function dynamic(t, x, u, w)
     return  Ax[t]*x+Au[t]*u+Aw[t]*w
@@ -87,7 +86,7 @@ end
 
 # Define cost corresponding to each timestep:
 function cost_t(t, x, u, w)
-    return Cx[t]*x+Cu[t]*u+Cw[t]*w
+    return (Cx[t]*x)[1,1]+(Cu[t]*u)[1,1]+(Cw[t]*w)[1,1]
 end
 
 
@@ -188,8 +187,6 @@ function solve_dams(model,params,display=false)
     return stocks, V
 end
 
-
-
 #Solve the problem and try nb_iter times to generate radom data in case of infeasibility
 unsolve = true
 sol = 0
@@ -202,6 +199,13 @@ while i<nb_iter
         i = nb_iter;
         unsolve = false;
     end
+    Ax=[]
+    Au=[]
+    Aw=[]
+
+    Cx=[]
+    Cu=[]
+    Cw=[]
     generate_random_matrix_and_costs()
     i = i+1
 end
@@ -209,6 +213,7 @@ end
 if unsolve
     println("Change your parameters")
 else
+    a,b = solve_dams(model,params)
     println("solution =",sol) 
 end
 
