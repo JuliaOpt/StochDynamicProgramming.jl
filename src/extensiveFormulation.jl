@@ -73,7 +73,7 @@ function extensive_formulation(model,
                                                                                     [u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL],
                                                                                     laws[t].support[xi]))
                 @addConstraint(mod,
-                c[t,m] == model.costFunctions(t,
+                c[t,m] .== model.costFunctions(t,
                                                 [x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE],
                                                 [u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL],
                                                 laws[t].support[xi]))
@@ -93,7 +93,9 @@ function extensive_formulation(model,
     solved = (status == :Optimal)
 
     if solved
-        return getObjectiveValue(mod)
+        return getObjectiveValue(mod), status
+    else
+        return -1, status
     end
 
 end

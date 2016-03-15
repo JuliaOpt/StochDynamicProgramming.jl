@@ -7,39 +7,20 @@
 # Source: Adrien Cassegrain
 #############################################################################
 
-srand(2713)
+#srand(2713)
 push!(LOAD_PATH, "../src")
 
 using StochDynamicProgramming, JuMP, Clp
 
-
+#Constant that the user have to define himself
 const SOLVER = ClpSolver()
 # const SOLVER = CplexSolver(CPX_PARAM_SIMDISPLAY=0)
-
-const EPSILON = .05
-const MAX_ITER = 20
-
-alea_year = Array([7.0 7.0 8.0 3.0 1.0 1.0 3.0 4.0 3.0 2.0 6.0 5.0 2.0 6.0 4.0 7.0 3.0 4.0 1.0 1.0 6.0 2.0 2.0 8.0 3.0 7.0 3.0 1.0 4.0 2.0 4.0 1.0 3.0 2.0 8.0 1.0 5.0 5.0 2.0 1.0 6.0 7.0 5.0 1.0 7.0 7.0 7.0 4.0 3.0 2.0 8.0 7.0])
 
 const N_STAGES = 5
 const N_SCENARIOS = 3
 
 # FINAL TIME:
 const TF = N_STAGES
-
-# COST:
-const COST = -66*2.7*(1 + .5*(rand(TF) - .5))
-
-# Constants:
-const VOLUME_MAX = 100
-const VOLUME_MIN = 0
-
-const CONTROL_MAX = round(Int, .4/7. * VOLUME_MAX) + 1
-const CONTROL_MIN = 0
-
-const W_MAX = round(Int, .5/7. * VOLUME_MAX)
-const W_MIN = 0
-const DW = 1
 
 const T0 = 1
 const HORIZON = TF
@@ -48,70 +29,69 @@ const DIM_STATES = 2
 const DIM_CONTROLS = 4
 const DIM_ALEAS = 1
 
+
+
+#Constants that the user does not have to define
+# COST:
+const COST = -66*2.7*(1 + .5*(rand(TF) - .5))
+
+# Constants:
+const VOLUME_MAX = 1000
+const VOLUME_MIN = -1000
+
+const CONTROL_MAX = round(Int, .4/7. * VOLUME_MAX) + 1
+const CONTROL_MIN = 0
+
+const W_MAX = round(Int, .5/7. * VOLUME_MAX)
+const W_MIN = 0
+const DW = 1
+
 # Define aleas' space:
 const N_ALEAS = Int(round(Int, (W_MAX - W_MIN) / DW + 1))
 const ALEAS = linspace(W_MIN, W_MAX, N_ALEAS)
 
+const EPSILON = .05
+const MAX_ITER = 20
+
+alea_year = Array([7.0 7.0 8.0 3.0 1.0 1.0 3.0 4.0 3.0 2.0 6.0 5.0 2.0 6.0 4.0 7.0 3.0 4.0 1.0 1.0 6.0 2.0 2.0 8.0 3.0 7.0 3.0 1.0 4.0 2.0 4.0 1.0 3.0 2.0 8.0 1.0 5.0 5.0 2.0 1.0 6.0 7.0 5.0 1.0 7.0 7.0 7.0 4.0 3.0 2.0 8.0 7.0])
 
 
-Ax = rand(DIM_STATES,DIM_STATES)
-Au = rand(DIM_STATES,DIM_CONTROLS)
-Aw = rand(DIM_STATES,DIM_ALEAS)
+Ax=[]
+Au=[]
+Aw=[]
 
-Cx = rand(1,DIM_STATES)
-Cu = rand(1,DIM_CONTROLS)
-Cw = rand(1,DIM_ALEAS)
-
-
+Cx=[]
+Cu=[]
+Cw=[]
 
 const X0 = [50, 50]
 
-#=
-function generate_random_dynamics()
-    for i in:TF
-        
-    end
+
+
+for i=1:TF
+        push!(Ax, rand(DIM_STATES,DIM_STATES))
+        push!(Au, rand(DIM_STATES,DIM_CONTROLS))
+        push!(Aw, rand(DIM_STATES,DIM_ALEAS))
+
+        push!(Cx, rand(1,DIM_STATES))
+        push!(Cu, rand(1,DIM_CONTROLS))
+        push!(Cw, rand(1,DIM_ALEAS))
 end
-=#
+
+
+#TODO faire dépendre de t
 
 # Define dynamic of the dam:
 function dynamic(t, x, u, w)
     #return [x[1] - u[1] + w[1], x[2] - u[2] + u[1]]
     #return [x[1] - u[1] - u[3] + w[1], x[2] - u[2] - u[4] + u[1] + u[3]]
-    return  Ax*x+Au*u+Aw*w
+    return  Ax[t]*x+Au[t]*u+Aw[t]*w
 end
 
 # Define cost corresponding to each timestep:
 function cost_t(t, x, u, w)
-    return COST[t] * (u[1] + u[2])
-end
-
-
-"""Solve the problem with a solver, supposing the aleas are known
-in advance."""
-function solve_determinist_problem()
-    m = Model(solver=SOLVER)
-
-
-    @defVar(m,  VOLUME_MIN  <= x1[1:(TF+1)]  <= VOLUME_MAX)
-    @defVar(m,  VOLUME_MIN  <= x2[1:(TF+1)]  <= VOLUME_MAX)
-    @defVar(m,  CONTROL_MIN <= u1[1:TF]  <= CONTROL_MAX)
-    @defVar(m,  CONTROL_MIN <= u2[1:TF]  <= CONTROL_MAX)
-
-    @setObjective(m, Min, sum{COST[i]*(u1[i] + u2[i]), i = 1:TF})
-
-    for i in 1:TF
-        @addConstraint(m, x1[i+1] - x1[i] + u1[i] - alea_year[i] == 0)
-        @addConstraint(m, x2[i+1] - x2[i] + u2[i] - u1[i] == 0)
-    end
-
-    @addConstraint(m, x1[1] == X0[1])
-    @addConstraint(m, x2[1] == X0[2])
-
-    status = solve(m)
-    println(status)
-    println(getObjectiveValue(m))
-    return getValue(u1), getValue(x1), getValue(x2)
+    #return COST[t] * (u[1] + u[2])
+    return Cx[t]*x+Cu[t]*u+Cw[t]*w
 end
 
 
@@ -212,4 +192,33 @@ function solve_dams(model,params,display=false)
     return stocks, V
 end
 
-println(extensive_formulation(model,params))
+
+
+unsolve = true
+sol = 0
+i = 0
+nb_iter = 10
+
+while i<nb_iter
+    sol, status = extensive_formulation(model,params)
+    if (status != :Infeasible)
+        i = nb_iter;
+        unsolve = false;
+    end
+    Ax = rand(DIM_STATES,DIM_STATES)
+    Au = rand(DIM_STATES,DIM_CONTROLS)
+    Aw = rand(DIM_STATES,DIM_ALEAS)
+
+    Cx = rand(1,DIM_STATES)
+    Cu = rand(1,DIM_CONTROLS)
+    Cw = rand(1,DIM_ALEAS)
+    println("i =", i)
+    i = i+1
+end
+
+if unsolve
+    println("Change your parameters")
+else
+    println("solution =",sol) 
+end
+
