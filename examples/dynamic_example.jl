@@ -19,12 +19,6 @@ const SOLVER = ClpSolver()
 const N_STAGES = 5
 const N_SCENARIOS = 3
 
-# FINAL TIME:
-const TF = N_STAGES
-
-const T0 = 1
-const HORIZON = TF
-
 const DIM_STATES = 2
 const DIM_CONTROLS = 4
 const DIM_ALEAS = 1
@@ -32,6 +26,12 @@ const DIM_ALEAS = 1
 
 
 #Constants that the user does not have to define
+# FINAL TIME:
+const TF = N_STAGES
+
+const T0 = 1
+const HORIZON = TF
+
 # COST:
 const COST = -66*2.7*(1 + .5*(rand(TF) - .5))
 
@@ -55,42 +55,38 @@ const MAX_ITER = 20
 
 alea_year = Array([7.0 7.0 8.0 3.0 1.0 1.0 3.0 4.0 3.0 2.0 6.0 5.0 2.0 6.0 4.0 7.0 3.0 4.0 1.0 1.0 6.0 2.0 2.0 8.0 3.0 7.0 3.0 1.0 4.0 2.0 4.0 1.0 3.0 2.0 8.0 1.0 5.0 5.0 2.0 1.0 6.0 7.0 5.0 1.0 7.0 7.0 7.0 4.0 3.0 2.0 8.0 7.0])
 
-
-Ax=[]
-Au=[]
-Aw=[]
-
-Cx=[]
-Cu=[]
-Cw=[]
-
 const X0 = [50, 50]
 
+function generate_random_matrix_and_costs()
+    Ax=[]
+    Au=[]
+    Aw=[]
 
+    Cx=[]
+    Cu=[]
+    Cw=[]
 
-for i=1:TF
-        push!(Ax, rand(DIM_STATES,DIM_STATES))
-        push!(Au, rand(DIM_STATES,DIM_CONTROLS))
-        push!(Aw, rand(DIM_STATES,DIM_ALEAS))
+    for i=1:TF
+            push!(Ax, rand(DIM_STATES,DIM_STATES))
+            push!(Au, rand(DIM_STATES,DIM_CONTROLS))
+            push!(Aw, rand(DIM_STATES,DIM_ALEAS))
 
-        push!(Cx, rand(1,DIM_STATES))
-        push!(Cu, rand(1,DIM_CONTROLS))
-        push!(Cw, rand(1,DIM_ALEAS))
+            push!(Cx, rand(1,DIM_STATES))
+            push!(Cu, rand(1,DIM_CONTROLS))
+            push!(Cw, rand(1,DIM_ALEAS))
+    end
 end
 
+generate_random_matrix_and_costs()
 
-#TODO faire dépendre de t
 
 # Define dynamic of the dam:
 function dynamic(t, x, u, w)
-    #return [x[1] - u[1] + w[1], x[2] - u[2] + u[1]]
-    #return [x[1] - u[1] - u[3] + w[1], x[2] - u[2] - u[4] + u[1] + u[3]]
     return  Ax[t]*x+Au[t]*u+Aw[t]*w
 end
 
 # Define cost corresponding to each timestep:
 function cost_t(t, x, u, w)
-    #return COST[t] * (u[1] + u[2])
     return Cx[t]*x+Cu[t]*u+Cw[t]*w
 end
 
@@ -194,6 +190,7 @@ end
 
 
 
+#Solve the problem and try nb_iter times to generate radom data in case of infeasibility
 unsolve = true
 sol = 0
 i = 0
@@ -205,14 +202,7 @@ while i<nb_iter
         i = nb_iter;
         unsolve = false;
     end
-    Ax = rand(DIM_STATES,DIM_STATES)
-    Au = rand(DIM_STATES,DIM_CONTROLS)
-    Aw = rand(DIM_STATES,DIM_ALEAS)
-
-    Cx = rand(1,DIM_STATES)
-    Cu = rand(1,DIM_CONTROLS)
-    Cw = rand(1,DIM_ALEAS)
-    println("i =", i)
+    generate_random_matrix_and_costs()
     i = i+1
 end
 
