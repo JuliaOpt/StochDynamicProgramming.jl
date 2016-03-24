@@ -165,7 +165,7 @@ function init_problem()
                                                 dynamic,
                                                 aleas)
 
-    set_state_bounds(model, x_bounds)
+    #set_state_bounds(model, x_bounds)
 
     solver = SOLVER
     params = SDDPparameters(solver, N_SCENARIOS, EPSILON, MAX_ITER)
