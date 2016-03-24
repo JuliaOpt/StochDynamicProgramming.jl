@@ -76,9 +76,9 @@ end
 
 # Define dynamic of the dam:
 function dynamic(t, x, u, w)
-    #return [x[1] - u[1] + w[1], x[2] - u[2] + u[1]]
+    return [x[1] - u[1] + w[1], x[2] - u[2] + u[1]]
     #return [x[1] - u[1] - u[3] + w[1], x[2] - u[2] - u[4] + u[1] + u[3]]
-    return  Ax*x+Au*u+Aw*w
+    #return  Ax*x+Au*u+Aw*w
 end
 
 # Define cost corresponding to each timestep:
@@ -211,5 +211,3 @@ function solve_dams(model,params,display=false)
     println("SDDP cost: ", costs)
     return stocks, V
 end
-
-println(extensive_formulation(model,params))

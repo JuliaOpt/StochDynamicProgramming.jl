@@ -20,7 +20,7 @@ const N_STAGES = 5
 const N_SCENARIOS = 3
 
 const DIM_STATES = 2
-const DIM_CONTROLS = 4
+const DIM_CONTROLS = 2
 const DIM_ALEAS = 1
 
 
@@ -31,9 +31,6 @@ const TF = N_STAGES
 
 const T0 = 1
 const HORIZON = TF
-
-# COST:
-const COST = -66*2.7*(1 + .5*(rand(TF) - .5))
 
 # Constants:
 const VOLUME_MAX = 100
@@ -65,19 +62,24 @@ Cx=[]
 Cu=[]
 Cw=[]
 
-function generate_random_matrix_and_costs()
+function generate_random_dynamic()
     for i=1:TF
             push!(Ax, rand(DIM_STATES,DIM_STATES))
             push!(Au, rand(DIM_STATES,DIM_CONTROLS))
             push!(Aw, rand(DIM_STATES,DIM_ALEAS))
+    end
+end
 
+function generate_random_costs()
+    for i=1:TF
             push!(Cx, rand(1,DIM_STATES))
-            push!(Cu, rand(1,DIM_CONTROLS))
+            push!(Cu, -1*rand(1,DIM_CONTROLS))
             push!(Cw, rand(1,DIM_ALEAS))
     end
 end
 
-generate_random_matrix_and_costs()
+generate_random_dynamic()
+generate_random_costs()
 
 # Define dynamic of the dam:
 function dynamic(t, x, u, w)
@@ -86,7 +88,9 @@ end
 
 # Define cost corresponding to each timestep:
 function cost_t(t, x, u, w)
-    return (Cx[t]*x)[1,1]+(Cu[t]*u)[1,1]+(Cw[t]*w)[1,1]
+    #if you want to compare the value, take the cost with only control
+    return (Cu[t]*u)[1,1]
+    #return (Cx[t]*x)[1,1]+(Cu[t]*u)[1,1]+(Cw[t]*w)[1,1]
 end
 
 
@@ -149,8 +153,11 @@ function init_problem()
     aleas = generate_probability_laws()
 
     x_bounds = [(VOLUME_MIN, VOLUME_MAX), (VOLUME_MIN, VOLUME_MAX)]
-    u_bounds = [(CONTROL_MIN, CONTROL_MAX), (CONTROL_MIN, CONTROL_MAX), (0, Inf), (0, Inf)]
-
+    u_bounds  = []
+    for u = 1:DIM_CONTROLS
+        u_bounds = push!(u_bounds, (CONTROL_MIN, CONTROL_MAX))
+    end
+ 
     model = LinearDynamicLinearCostSPmodel(N_STAGES,
                                                 u_bounds,
                                                 x0,
@@ -167,6 +174,9 @@ function init_problem()
 end
 
 model, params = init_problem()
+modelbis = model
+paramsbis = params
+
 
 """Solve the problem."""
 function solve_dams(model,params,display=false)
@@ -195,25 +205,30 @@ nb_iter = 10
 
 while i<nb_iter
     sol, status = extensive_formulation(model,params)
-    if (status != :Infeasible)
-        i = nb_iter;
-        unsolve = false;
+    if (status == :Optimal)
+        i = i+nb_iter
+        unsolve = false
+        println("coucou2")
+    else
+        println("\nGenerate new dynamic to reach feasability\n")
+        Ax=[]
+        Au=[]
+        Aw=[]
+        generate_random_dynamic()
+        model, params = init_problem()
+        modelbis = model
+        paramsbis = params
+        i = i+1
     end
-    Ax=[]
-    Au=[]
-    Aw=[]
-
-    Cx=[]
-    Cu=[]
-    Cw=[]
-    generate_random_matrix_and_costs()
-    i = i+1
 end
 
-if unsolve
+println(unsolve)
+
+if (unsolve)
     println("Change your parameters")
 else
-    a,b = solve_dams(model,params)
-    println("solution =",sol) 
+    println("solution =",sol)
+    a,b = solve_dams(modelbis,paramsbis)
+    println("stop")
 end
 
