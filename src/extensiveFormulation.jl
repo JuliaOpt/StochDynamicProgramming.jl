@@ -6,12 +6,14 @@
 #  Define the extensive formulation to check the results of small problems
 #############################################################################
 
-
+"""
+Contruct the scenario tree and solve the problem with measurability constraints
+"""
 function extensive_formulation(model,
                                params)
 
 
-    #TODO Recover all the constant in the model or in param
+    #Recover all the constant in the model or in param
     laws = model.noises
     N_NOISES = laws[1].supportSize
 
@@ -98,7 +100,7 @@ function extensive_formulation(model,
     if solved
         return getObjectiveValue(mod), status
     else
-        return -1, status
+        return -1., status
     end
 
 end
