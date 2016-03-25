@@ -208,7 +208,6 @@ while i<nb_iter
     if (status == :Optimal)
         i = i+nb_iter
         unsolve = false
-        println("coucou2")
     else
         println("\nGenerate new dynamic to reach feasability\n")
         Ax=[]
@@ -229,6 +228,5 @@ if (unsolve)
 else
     println("solution =",sol)
     a,b = solve_dams(modelbis,paramsbis)
-    println("stop")
 end
 

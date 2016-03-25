@@ -93,7 +93,7 @@ function run_SDDP(model::SPModel,
         # Build given number of scenarios according to distribution
         # law specified in model.noises:
         aleas = simulate_scenarios(model.noises ,
-                                    (model.stageNumber,
+                                    (model.stageNumber-1,
                                      param.forwardPassNumber,
                                      model.dimNoises))
 
@@ -176,7 +176,7 @@ function estimate_upper_bound(model, param, V, problems, n_simulation=1000)
     param.forwardPassNumber = n_simulation
 
     aleas = simulate_scenarios(model.noises ,
-                                    (model.stageNumber,
+                                    (model.stageNumber-1,
                                      param.forwardPassNumber,
                                      model.dimNoises))
 
@@ -262,10 +262,10 @@ Return:
 """
 function build_models(model::SPModel, param::SDDPparameters)
 
-    models = Vector{JuMP.Model}(model.stageNumber)
+    models = Vector{JuMP.Model}(model.stageNumber-1)
 
 
-    for t = 1:model.stageNumber
+    for t = 1:model.stageNumber-1
         m = Model(solver=param.solver)
 
         nx = model.dimStates
@@ -294,7 +294,7 @@ function build_models(model::SPModel, param::SDDPparameters)
             @setObjective(m, Min, cost + alpha)
 
         else
-            error("model must be: LinearDynamicLinearCostSPModel or LinearDynamicLinearCostSPmodel")
+            error("model must be: LinearDynamicLinearCostSPModel or PiecewiseLinearCostSPmodel")
         end
 
         models[t] = m
@@ -340,7 +340,7 @@ function initialize_value_functions( model::SPModel,
 
     # Build scenarios according to distribution laws:
     aleas = simulate_scenarios(model.noises,
-                               (model.stageNumber,
+                               (model.stageNumber-1,
                                 param.forwardPassNumber,
                                 model.dimNoises))
 
@@ -353,7 +353,7 @@ function initialize_value_functions( model::SPModel,
                         aleas,
                         false, true, false)[2]
 
-    build_terminal_cost!(model, solverProblems[end-1], V[end])
+    build_terminal_cost!(model, solverProblems[end], V[end])
 
     backward_pass!(model,
                   param,
@@ -387,8 +387,8 @@ function hotstart(model::SPModel, param::SDDPparameters, V::Vector{PolyhedralFun
 
     solverProblems = build_models(model, param)
 
-    for t in 1:model.stageNumber
-        add_cuts_to_model!(model, t, solverProblems[t], V[t])
+    for t in 1:model.stageNumber-1
+        add_cuts_to_model!(model, t, solverProblems[t], V[t+1])
     end
     return solverProblems
 end

@@ -68,7 +68,7 @@ function solve_one_step_one_alea(model,
     # If this is the first call to the solver, value-to-go are approximated
     # with null function:
     if init
-        @addConstraint(m, alpha >= 0.)
+        @addConstraint(m, alpha >= 0)
     end
     # Update constraint x == xt
     for i in 1:model.dimStates

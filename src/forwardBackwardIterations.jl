@@ -66,7 +66,9 @@ function forward_simulations(model::SPModel,
     # TODO: verify that loops are in the same order
     T = model.stageNumber
     stocks = zeros(T, param.forwardPassNumber, model.dimStates)
-    controls = zeros(T, param.forwardPassNumber, model.dimControls)
+    # We got T - 1 control, as terminal state is included into the total number
+    # of stages.
+    controls = zeros(T - 1, param.forwardPassNumber, model.dimControls)
 
     # Set first value of stocks equal to x0:
     for i in 1:param.forwardPassNumber

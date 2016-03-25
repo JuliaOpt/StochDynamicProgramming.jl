@@ -24,11 +24,8 @@ alea_year = Array([7.0 7.0 8.0 3.0 1.0 1.0 3.0 4.0 3.0 2.0 6.0 5.0 2.0 6.0 4.0 7
 const N_STAGES = 5
 const N_SCENARIOS = 3
 
-# FINAL TIME:
-const TF = N_STAGES
-
 # COST:
-const COST = -66*2.7*(1 + .5*(rand(TF) - .5))
+const COST = -66*2.7*(1 + .5*(rand(N_STAGES) - .5))
 
 # Constants:
 const VOLUME_MAX = 100
@@ -42,7 +39,7 @@ const W_MIN = 0
 const DW = 1
 
 const T0 = 1
-const HORIZON = TF
+const HORIZON = N_STAGES
 
 const DIM_STATES = 2
 const DIM_CONTROLS = 4
@@ -93,14 +90,14 @@ function solve_determinist_problem()
     m = Model(solver=SOLVER)
 
 
-    @defVar(m,  VOLUME_MIN  <= x1[1:(TF+1)]  <= VOLUME_MAX)
-    @defVar(m,  VOLUME_MIN  <= x2[1:(TF+1)]  <= VOLUME_MAX)
-    @defVar(m,  CONTROL_MIN <= u1[1:TF]  <= CONTROL_MAX)
-    @defVar(m,  CONTROL_MIN <= u2[1:TF]  <= CONTROL_MAX)
+    @defVar(m,  VOLUME_MIN  <= x1[1:N_STAGES]  <= VOLUME_MAX)
+    @defVar(m,  VOLUME_MIN  <= x2[1:N_STAGES]  <= VOLUME_MAX)
+    @defVar(m,  CONTROL_MIN <= u1[1:N_STAGES-1]  <= CONTROL_MAX)
+    @defVar(m,  CONTROL_MIN <= u2[1:N_STAGES-1]  <= CONTROL_MAX)
 
-    @setObjective(m, Min, sum{COST[i]*(u1[i] + u2[i]), i = 1:TF})
+    @setObjective(m, Min, sum{COST[i]*(u1[i] + u2[i]), i = 1:N_STAGES})
 
-    for i in 1:TF
+    for i in 1:N_STAGES-1
         @addConstraint(m, x1[i+1] - x1[i] + u1[i] - alea_year[i] == 0)
         @addConstraint(m, x2[i+1] - x2[i] + u2[i] - u1[i] == 0)
     end
@@ -117,15 +114,15 @@ end
 
 """Build aleas probabilities for each month."""
 function build_aleas()
-    aleas = zeros(N_ALEAS, TF)
+    aleas = zeros(N_ALEAS, N_STAGES)
 
     # take into account seasonality effects:
     unorm_prob = linspace(1, N_ALEAS, N_ALEAS)
     proba1 = unorm_prob / sum(unorm_prob)
     proba2 = proba1[N_ALEAS:-1:1]
 
-    for t in 1:TF
-        aleas[:, t] = (1 - sin(pi*t/TF)) * proba1 + sin(pi*t/TF) * proba2
+    for t in 1:N_STAGES-1
+        aleas[:, t] = (1 - sin(pi*t/N_STAGES)) * proba1 + sin(pi*t/N_STAGES) * proba2
     end
     return aleas
 end
@@ -133,10 +130,10 @@ end
 
 """Build an admissible scenario for water inflow."""
 function build_scenarios(n_scenarios::Int64, probabilities)
-    scenarios = zeros(n_scenarios, TF)
+    scenarios = zeros(n_scenarios, N_STAGES)
 
     for scen in 1:n_scenarios
-        for t in 1:TF
+        for t in 1:N_STAGES-1
             Pcum = cumsum(probabilities[:, t])
 
             n_random = rand()
@@ -159,7 +156,7 @@ function generate_probability_laws()
     # uniform probabilities:
     proba = 1/N_SCENARIOS*ones(N_SCENARIOS)
 
-    for t=1:N_STAGES
+    for t=1:N_STAGES-1
         laws[t] = NoiseLaw(aleas[:, t], proba)
     end
 
@@ -201,13 +198,14 @@ function solve_dams(model,params,display=false)
     V, pbs = solve_SDDP(model, params, display)
 
     aleas = simulate_scenarios(model.noises,
-                              (model.stageNumber,
+                              (model.stageNumber-1,
                                params.forwardPassNumber,
                                model.dimNoises))
 
     params.forwardPassNumber = 1
 
     costs, stocks = forward_simulations(model, params, V, pbs, aleas)
+
     println("SDDP cost: ", costs)
-    return stocks, V
+    return stocks, V, controls
 end

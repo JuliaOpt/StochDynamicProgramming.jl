@@ -72,7 +72,6 @@ type PiecewiseLinearCostSPmodel <: SPModel
     end
 end
 
-
 """Set bounds on state."""
 function set_state_bounds(model::SPModel, xbounds)
     if length(xbounds) != model.dimStates
@@ -82,6 +81,65 @@ function set_state_bounds(model::SPModel, xbounds)
     end
 end
 
+
+type StochDynProgModel <: SPModel
+    # problem dimension
+    stageNumber::Int64
+    dimControls::Int64
+    dimStates::Int64
+    dimNoises::Int64
+
+    # Bounds of states and controls:
+    xlim::Array{Tuple{Float64,Float64},1}
+    ulim::Array{Tuple{Float64,Float64},1}
+
+    initialState::Array{Float64, 1}
+
+    costFunctions::Function
+    finalCostFunction::Function
+    dynamics::Function
+    constraints::Function
+    noises::Vector{NoiseLaw}
+
+    function StochDynProgModel(model::LinearDynamicLinearCostSPmodel, final, cons)
+        return new(model.stageNumber-1, model.dimControls, model.dimStates,
+                 model.dimNoises, model.xlim, model.ulim, model.initialState,
+                 model.costFunctions, final, model.dynamics, cons,
+                 model.noises)
+    end
+
+    function StochDynProgModel(model::PiecewiseLinearCostSPmodel, final, cons)
+
+        function cost(t,x,u,w)
+            saved_cost = -Inf
+            current_cost = 0
+            for i in model.costFunctions
+                current_cost = i(t,x,u,w)
+                if (current_cost>saved_cost)
+                    saved_cost = current_cost
+                end
+            end
+            return saved_cost
+        end
+
+        return new(model.stageNumber-1, model.dimControls, model.dimStates,
+                 model.dimNoises, model.xlim, model.ulim, model.initialState,
+                 cost, final, model.dynamics, cons,
+                 model.noises)
+    end
+
+    function StochDynProgModel(TF, N_CONTROLS, N_STATES, N_NOISES,
+                    x_bounds, u_bounds, x0, cost_t, finalCostFunction, dynamic,
+                    constraints, aleas)
+        return new(TF, N_CONTROLS, N_STATES, N_NOISES,
+                    x_bounds, u_bounds, x0, cost_t, finalCostFunction, dynamic,
+                    constraints, aleas)
+    end
+
+    # TODO: add this attributes to model
+    # lowerbounds#::Tuple{Vector{Float64}}
+    # upperbounds#::Tuple{Vector{Float64}}
+end
 
 type SDDPparameters
     # Solver to solve
@@ -95,6 +153,39 @@ type SDDPparameters
 
     function SDDPparameters(solver, passnumber, sensibility=0.01, max_iterations=20)
         return new(solver, passnumber, sensibility, max_iterations)
+    end
+end
+
+
+type SDPparameters
+    stateSteps
+    controlSteps
+    totalStateSpaceSize
+    totalControlSpaceSize
+    stateVariablesSizes
+    controlVariablesSizes
+    monteCarloSize
+    infoStructure
+
+    function SDPparameters(model, stateSteps, controlSteps, monteCarloSize, infoStruct)
+
+        stateVariablesSizes = zeros(Int64, length(stateSteps))
+        controlVariablesSizes = zeros(Int64, length(controlSteps))
+        totalStateSpaceSize = 1
+        totalControlSpaceSize = 1
+        for i=1:length(stateSteps)
+            stateVariablesSizes[i] = round(Int64,1 + (model.xlim[i][2]-model.xlim[i][1])/stateSteps[i])
+            totalStateSpaceSize *= stateVariablesSizes[i]
+        end
+
+        for i=1:length(controlSteps)
+            controlVariablesSizes[i] = round(Int64, 1 + (model.ulim[i][2]-model.ulim[i][1])/controlSteps[i])
+            totalControlSpaceSize *= controlVariablesSizes[i]
+        end
+
+        return new(stateSteps, controlSteps, totalStateSpaceSize,
+                    totalControlSpaceSize, stateVariablesSizes,
+                    controlVariablesSizes, monteCarloSize, infoStruct)
     end
 end
 
