@@ -6,12 +6,14 @@
 #  Define the extensive formulation to check the results of small problems
 #############################################################################
 
-
+"""
+Contruct the scenario tree and solve the problem with measurability constraints
+"""
 function extensive_formulation(model,
                                params)
 
 
-    #TODO Recover all the constant in the model or in param
+    #Recover all the constant in the model or in param
     laws = model.noises
     N_NOISES = laws[1].supportSize
 
@@ -43,7 +45,6 @@ function extensive_formulation(model,
 
 
     #Computes the total probability of each node from the conditional probabilities
-    #proba = Any[]
     proba = []
     push!(proba, laws[1].proba)
     for t = 2 : T
@@ -64,14 +65,18 @@ function extensive_formulation(model,
             for xi = 1 : laws[t].supportSize
                 m = (n-1)*laws[t].supportSize+xi
 
+                #Add bounds constraint on the control
                 @addConstraint(mod,[u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL] .>= [model.ulim[k][1] for k = 1:DIM_CONTROL])
                 @addConstraint(mod,[u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL] .<= [model.ulim[k][2] for k = 1:DIM_CONTROL])
-
+    
+                #Add dynamic constraints
                 @addConstraint(mod,
                 [x[t+1,DIM_STATE*(m-1)+k] for k = 1:DIM_STATE] .== model.dynamics(t,
                                                                                     [x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE],
                                                                                     [u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL],
                                                                                     laws[t].support[xi]))
+                                                                                   
+                #Add constraints to define the cost at each node
                 @addConstraint(mod,
                 c[t,m] == model.costFunctions(t,
                                                 [x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE],
@@ -93,7 +98,9 @@ function extensive_formulation(model,
     solved = (status == :Optimal)
 
     if solved
-        return getObjectiveValue(mod)
+        return getObjectiveValue(mod), status
+    else
+        return -1., status
     end
 
 end

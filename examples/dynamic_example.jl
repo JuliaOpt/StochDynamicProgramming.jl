@@ -7,25 +7,26 @@
 # Source: Adrien Cassegrain
 #############################################################################
 
-srand(2713)
+#srand(2713)
 push!(LOAD_PATH, "../src")
 
 using StochDynamicProgramming, JuMP, Clp
 
-
+#Constant that the user have to define himself
 const SOLVER = ClpSolver()
 # const SOLVER = CplexSolver(CPX_PARAM_SIMDISPLAY=0)
-
-const EPSILON = .05
-const MAX_ITER = 20
-
-alea_year = Array([7.0 7.0 8.0 3.0 1.0 1.0 3.0 4.0 3.0 2.0 6.0 5.0 2.0 6.0 4.0 7.0 3.0 4.0 1.0 1.0 6.0 2.0 2.0 8.0 3.0 7.0 3.0 1.0 4.0 2.0 4.0 1.0 3.0 2.0 8.0 1.0 5.0 5.0 2.0 1.0 6.0 7.0 5.0 1.0 7.0 7.0 7.0 4.0 3.0 2.0 8.0 7.0])
 
 const N_STAGES = 5
 const N_SCENARIOS = 3
 
-# COST:
-const COST = -66*2.7*(1 + .5*(rand(N_STAGES) - .5))
+const DIM_STATES = 2
+const DIM_CONTROLS = 2
+const DIM_ALEAS = 1
+
+
+
+#Constants that the user does not have to define
+const T0 = 1
 
 # Constants:
 const VOLUME_MAX = 100
@@ -38,56 +39,54 @@ const W_MAX = round(Int, .5/7. * VOLUME_MAX)
 const W_MIN = 0
 const DW = 1
 
-const T0 = 1
-
-const DIM_STATES = 2
-const DIM_CONTROLS = 4
-const DIM_ALEAS = 1
-
 # Define aleas' space:
 const N_ALEAS = Int(round(Int, (W_MAX - W_MIN) / DW + 1))
 const ALEAS = linspace(W_MIN, W_MAX, N_ALEAS)
 
+const EPSILON = .05
+const MAX_ITER = 20
+
+alea_year = Array([7.0 7.0 8.0 3.0 1.0 1.0 3.0 4.0 3.0 2.0 6.0 5.0 2.0 6.0 4.0 7.0 3.0 4.0 1.0 1.0 6.0 2.0 2.0 8.0 3.0 7.0 3.0 1.0 4.0 2.0 4.0 1.0 3.0 2.0 8.0 1.0 5.0 5.0 2.0 1.0 6.0 7.0 5.0 1.0 7.0 7.0 7.0 4.0 3.0 2.0 8.0 7.0])
 
 const X0 = [50, 50]
 
+Ax=[]
+Au=[]
+Aw=[]
+
+Cx=[]
+Cu=[]
+Cw=[]
+
+function generate_random_dynamic()
+    for i=1:N_STAGES
+            push!(Ax, rand(DIM_STATES,DIM_STATES))
+            push!(Au, rand(DIM_STATES,DIM_CONTROLS))
+            push!(Aw, rand(DIM_STATES,DIM_ALEAS))
+    end
+end
+
+function generate_random_costs()
+    for i=1:N_STAGES
+            push!(Cx, rand(1,DIM_STATES))
+            push!(Cu, -1*rand(1,DIM_CONTROLS))
+            push!(Cw, rand(1,DIM_ALEAS))
+    end
+end
+
+generate_random_dynamic()
+generate_random_costs()
 
 # Define dynamic of the dam:
 function dynamic(t, x, u, w)
-    return [x[1] - u[1] - u[3] + w[1], x[2] - u[2] - u[4] + u[1] + u[3]]
+    return  Ax[t]*x+Au[t]*u+Aw[t]*w
 end
 
 # Define cost corresponding to each timestep:
 function cost_t(t, x, u, w)
-    return COST[t] * (u[1] + u[2])
-end
-
-
-"""Solve the problem assuming the aleas are known
-in advance."""
-function solve_determinist_problem()
-    m = Model(solver=SOLVER)
-
-
-    @defVar(m,  VOLUME_MIN  <= x1[1:N_STAGES]  <= VOLUME_MAX)
-    @defVar(m,  VOLUME_MIN  <= x2[1:N_STAGES]  <= VOLUME_MAX)
-    @defVar(m,  CONTROL_MIN <= u1[1:N_STAGES-1]  <= CONTROL_MAX)
-    @defVar(m,  CONTROL_MIN <= u2[1:N_STAGES-1]  <= CONTROL_MAX)
-
-    @setObjective(m, Min, sum{COST[i]*(u1[i] + u2[i]), i = 1:N_STAGES})
-
-    for i in 1:N_STAGES-1
-        @addConstraint(m, x1[i+1] - x1[i] + u1[i] - alea_year[i] == 0)
-        @addConstraint(m, x2[i+1] - x2[i] + u2[i] - u1[i] == 0)
-    end
-
-    @addConstraint(m, x1[1] == X0[1])
-    @addConstraint(m, x2[1] == X0[2])
-
-    status = solve(m)
-    println(status)
-    println(getObjectiveValue(m))
-    return getValue(u1), getValue(x1), getValue(x2)
+    #if you want to compare the value, take the cost with only control
+    return (Cu[t]*u)[1,1]
+    #return (Cx[t]*x)[1,1]+(Cu[t]*u)[1,1]+(Cw[t]*w)[1,1]
 end
 
 
@@ -100,7 +99,7 @@ function build_aleas()
     proba1 = unorm_prob / sum(unorm_prob)
     proba2 = proba1[N_ALEAS:-1:1]
 
-    for t in 1:N_STAGES-1
+    for t in 1:N_STAGES
         aleas[:, t] = (1 - sin(pi*t/N_STAGES)) * proba1 + sin(pi*t/N_STAGES) * proba2
     end
     return aleas
@@ -112,7 +111,7 @@ function build_scenarios(n_scenarios::Int64, probabilities)
     scenarios = zeros(n_scenarios, N_STAGES)
 
     for scen in 1:n_scenarios
-        for t in 1:N_STAGES-1
+        for t in 1:N_STAGES
             Pcum = cumsum(probabilities[:, t])
 
             n_random = rand()
@@ -135,7 +134,7 @@ function generate_probability_laws()
     # uniform probabilities:
     proba = 1/N_SCENARIOS*ones(N_SCENARIOS)
 
-    for t=1:N_STAGES-1
+    for t=1:N_STAGES
         laws[t] = NoiseLaw(aleas[:, t], proba)
     end
 
@@ -150,8 +149,11 @@ function init_problem()
     aleas = generate_probability_laws()
 
     x_bounds = [(VOLUME_MIN, VOLUME_MAX), (VOLUME_MIN, VOLUME_MAX)]
-    u_bounds = [(CONTROL_MIN, CONTROL_MAX), (CONTROL_MIN, CONTROL_MAX), (0, Inf), (0, Inf)]
-
+    u_bounds  = []
+    for u = 1:DIM_CONTROLS
+        u_bounds = push!(u_bounds, (CONTROL_MIN, CONTROL_MAX))
+    end
+ 
     model = LinearDynamicLinearCostSPmodel(N_STAGES,
                                                 u_bounds,
                                                 x0,
@@ -159,7 +161,7 @@ function init_problem()
                                                 dynamic,
                                                 aleas)
 
-    set_state_bounds(model, x_bounds)
+    #set_state_bounds(model, x_bounds)
 
     solver = SOLVER
     params = SDDPparameters(solver, N_SCENARIOS, EPSILON, MAX_ITER)
@@ -168,6 +170,9 @@ function init_problem()
 end
 
 model, params = init_problem()
+modelbis = model
+paramsbis = params
+
 
 """Solve the problem."""
 function solve_dams(model,params,display=false)
@@ -177,14 +182,46 @@ function solve_dams(model,params,display=false)
     V, pbs = solve_SDDP(model, params, display)
 
     aleas = simulate_scenarios(model.noises,
-                              (model.stageNumber-1,
+                              (model.stageNumber,
                                params.forwardPassNumber,
                                model.dimNoises))
 
     params.forwardPassNumber = 1
 
     costs, stocks = forward_simulations(model, params, V, pbs, aleas)
-
     println("SDDP cost: ", costs)
-    return stocks, V, controls
+    return stocks, V
 end
+
+#Solve the problem and try nb_iter times to generate radom data in case of infeasibility
+unsolve = true
+sol = 0
+i = 0
+nb_iter = 10
+
+while i<nb_iter
+    sol, status = extensive_formulation(model,params)
+    if (status == :Optimal)
+        i = i+nb_iter
+        unsolve = false
+    else
+        println("\nGenerate new dynamic to reach feasability\n")
+        Ax=[]
+        Au=[]
+        Aw=[]
+        generate_random_dynamic()
+        model, params = init_problem()
+        modelbis = model
+        paramsbis = params
+        i = i+1
+    end
+end
+
+
+if (unsolve)
+    println("Change your parameters")
+else
+    a,b = solve_dams(modelbis,paramsbis)
+    println("solution =",sol)    
+end
+
