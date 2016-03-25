@@ -39,7 +39,6 @@ const W_MIN = 0
 const DW = 1
 
 const T0 = 1
-const HORIZON = N_STAGES
 
 const DIM_STATES = 2
 const DIM_CONTROLS = 4
@@ -50,32 +49,12 @@ const N_ALEAS = Int(round(Int, (W_MAX - W_MIN) / DW + 1))
 const ALEAS = linspace(W_MIN, W_MAX, N_ALEAS)
 
 
-
-Ax = rand(DIM_STATES,DIM_STATES)
-Au = rand(DIM_STATES,DIM_CONTROLS)
-Aw = rand(DIM_STATES,DIM_ALEAS)
-
-Cx = rand(1,DIM_STATES)
-Cu = rand(1,DIM_CONTROLS)
-Cw = rand(1,DIM_ALEAS)
-
-
-
 const X0 = [50, 50]
 
-#=
-function generate_random_dynamics()
-    for i in:TF
-        
-    end
-end
-=#
 
 # Define dynamic of the dam:
 function dynamic(t, x, u, w)
-    return [x[1] - u[1] + w[1], x[2] - u[2] + u[1]]
-    #return [x[1] - u[1] - u[3] + w[1], x[2] - u[2] - u[4] + u[1] + u[3]]
-    #return  Ax*x+Au*u+Aw*w
+    return [x[1] - u[1] - u[3] + w[1], x[2] - u[2] - u[4] + u[1] + u[3]]
 end
 
 # Define cost corresponding to each timestep:

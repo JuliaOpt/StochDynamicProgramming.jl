@@ -26,11 +26,7 @@ const DIM_ALEAS = 1
 
 
 #Constants that the user does not have to define
-# FINAL TIME:
-const TF = N_STAGES
-
 const T0 = 1
-const HORIZON = TF
 
 # Constants:
 const VOLUME_MAX = 100
@@ -63,7 +59,7 @@ Cu=[]
 Cw=[]
 
 function generate_random_dynamic()
-    for i=1:TF
+    for i=1:N_STAGES
             push!(Ax, rand(DIM_STATES,DIM_STATES))
             push!(Au, rand(DIM_STATES,DIM_CONTROLS))
             push!(Aw, rand(DIM_STATES,DIM_ALEAS))
@@ -71,7 +67,7 @@ function generate_random_dynamic()
 end
 
 function generate_random_costs()
-    for i=1:TF
+    for i=1:N_STAGES
             push!(Cx, rand(1,DIM_STATES))
             push!(Cu, -1*rand(1,DIM_CONTROLS))
             push!(Cw, rand(1,DIM_ALEAS))
@@ -96,15 +92,15 @@ end
 
 """Build aleas probabilities for each month."""
 function build_aleas()
-    aleas = zeros(N_ALEAS, TF)
+    aleas = zeros(N_ALEAS, N_STAGES)
 
     # take into account seasonality effects:
     unorm_prob = linspace(1, N_ALEAS, N_ALEAS)
     proba1 = unorm_prob / sum(unorm_prob)
     proba2 = proba1[N_ALEAS:-1:1]
 
-    for t in 1:TF
-        aleas[:, t] = (1 - sin(pi*t/TF)) * proba1 + sin(pi*t/TF) * proba2
+    for t in 1:N_STAGES
+        aleas[:, t] = (1 - sin(pi*t/N_STAGES)) * proba1 + sin(pi*t/N_STAGES) * proba2
     end
     return aleas
 end
@@ -112,10 +108,10 @@ end
 
 """Build an admissible scenario for water inflow."""
 function build_scenarios(n_scenarios::Int64, probabilities)
-    scenarios = zeros(n_scenarios, TF)
+    scenarios = zeros(n_scenarios, N_STAGES)
 
     for scen in 1:n_scenarios
-        for t in 1:TF
+        for t in 1:N_STAGES
             Pcum = cumsum(probabilities[:, t])
 
             n_random = rand()
@@ -221,12 +217,11 @@ while i<nb_iter
     end
 end
 
-println(unsolve)
 
 if (unsolve)
     println("Change your parameters")
 else
-    println("solution =",sol)
     a,b = solve_dams(modelbis,paramsbis)
+    println("solution =",sol)    
 end
 
