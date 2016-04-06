@@ -123,9 +123,8 @@ function run_SDDP(model::SPModel,
 
         if (display > 0) && (iteration_count%display==0)
             println("Pass number ", iteration_count,
-                    "\tEstimation of upper-bound: ", upper_bound(costs),
-                    "\tLower-bound: ", get_bellman_value(model, param, 1, V[1], model.initialState),
-                    "\tTime: ", toq())
+                    "\tLower-bound: ", round(get_bellman_value(model, param, 1, V[1], model.initialState),4),
+                    "\tTime: ", round(toq(),2))
         end
 
     end
@@ -137,11 +136,11 @@ function run_SDDP(model::SPModel,
         
         println("Estimate upper-bound with Monte-Carlo ...")
         upb, costs = estimate_upper_bound(model, param, V, problems)
-        println("Estimation of upper-bound: ", upb,
-                "\tExact lower bound: ", V0,
-                "\t Gap (\%) <  ", (V0-upb)/V0 , " with prob. > 97.5 \%")
+        println("Estimation of upper-bound: ", round(upb,4),
+                "\tExact lower bound: ", round(V0,4),
+                "\t Gap <  ", round(100*(upb-V0)/V0) , "\%  with prob. > 97.5 \%")
         println("Estimation of cost of the solution (fiability 95\%):",
-                 mean(costs), " +/- ", 1.96*std(costs)/sqrt(length(costs)))
+                 round(mean(costs),4), " +/- ", round(1.96*std(costs)/sqrt(length(costs)),4))
     end
 
     return V, problems
@@ -429,6 +428,28 @@ function get_bellman_value(model::SPModel, param::SDDPparameters,
     @setObjective(m, Min, alpha)
     solve(m)
     return getValue(alpha)
+end
+
+
+"""
+Compute value of Bellman function at point xt. Return V_t(xt)
+
+Parameters:
+- model (SPModel)
+    Parametrization of the problem
+
+- param (SDDPparameters)
+    Parameters of SDDP
+
+- V (Vector{Polyhedral function})
+    Estimation of bellman function as Polyhedral function
+
+Return:
+current lower bound of the problem (Float64)
+"""
+function get_lower_bound(model::SPModel, param::SDDPparameters,
+                            V::Vector{PolyhedralFunction})
+    return get_bellman_value(model, param, 1, V[1], model.initialState)
 end
 
 

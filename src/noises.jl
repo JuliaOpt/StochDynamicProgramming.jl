@@ -173,12 +173,12 @@ function generate_scenarios(laws::Vector{NoiseLaw}, n::Int64)
     if n <= 0
         error("negative number of simulations")
     end
-    Tf = length(law)
+    Tf = length(laws)
     scenarios = Array{Vector{Float64}}(n,Tf)
     for i = 1:n#TODO can be parallelized
         scenario = []
         for t=1:Tf
-            new_val = laws[t].support[:, rand(Categorical(law[t].proba))]
+            new_val = laws[t].support[:, rand(Categorical(laws[t].proba))]
             push!(scenario, new_val)
         end
         scenarios[i,:]=scenario

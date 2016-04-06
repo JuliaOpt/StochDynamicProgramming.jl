@@ -37,6 +37,7 @@ type LinearDynamicLinearCostSPmodel <: SPModel
         for i = 1:dimStates
             push!(xbounds, (-Inf, Inf))
         end
+
         return new(nstage, dimControls, dimStates, dimNoises, xbounds, ubounds, x0, cost, dynamic, aleas)
     end
 end
@@ -102,14 +103,12 @@ type StochDynProgModel <: SPModel
     noises::Vector{NoiseLaw}
 
     function StochDynProgModel(model::LinearDynamicLinearCostSPmodel, final, cons)
-        return new(model.stageNumber-1, model.dimControls, model.dimStates,
-                 model.dimNoises, model.xlim, model.ulim, model.initialState,
+        return StochDynProgModel(model.stageNumber, model.xlim, model.ulim, model.initialState,
                  model.costFunctions, final, model.dynamics, cons,
                  model.noises)
     end
 
     function StochDynProgModel(model::PiecewiseLinearCostSPmodel, final, cons)
-
         function cost(t,x,u,w)
             saved_cost = -Inf
             current_cost = 0
@@ -122,16 +121,13 @@ type StochDynProgModel <: SPModel
             return saved_cost
         end
 
-        return new(model.stageNumber-1, model.dimControls, model.dimStates,
-                 model.dimNoises, model.xlim, model.ulim, model.initialState,
-                 cost, final, model.dynamics, cons,
-                 model.noises)
+        return StochDynProgModel(model.stageNumber, model.xlim, model.ulim, model.initialState,
+                 cost, final, model.dynamics, cons, model.noises)
     end
 
-    function StochDynProgModel(TF, N_CONTROLS, N_STATES, N_NOISES,
-                    x_bounds, u_bounds, x0, cost_t, finalCostFunction, dynamic,
-                    constraints, aleas)
-        return new(TF, N_CONTROLS, N_STATES, N_NOISES,
+    function StochDynProgModel(TF, x_bounds, u_bounds, x0, cost_t,
+                                finalCostFunction, dynamic, constraints, aleas)
+        return new(TF, length(u_bounds), length(x_bounds), length(aleas[1].support[:, 1]),
                     x_bounds, u_bounds, x0, cost_t, finalCostFunction, dynamic,
                     constraints, aleas)
     end

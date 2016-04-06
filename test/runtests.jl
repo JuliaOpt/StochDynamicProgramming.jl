@@ -274,7 +274,7 @@ facts("SDDP algorithm: 2D case") do
 end
 
 
-facts("Indexation and interpolation for SDP") do
+facts("Indexation for SDP") do
 
     bounds = [(0.1,10.0), (1.2, 4.0), (0.5, 2.0)]
     steps = [0.1, 0.05, 0.01]
@@ -386,12 +386,10 @@ facts("SDP algorithm") do
     aleas_scen = zeros(2, 1, 1)
     aleas_scen[:, 1, 1] = alea_year;
 
-    modelSDP = StochDynProgModel(TF, N_CONTROLS,
-                        N_STATES, N_NOISES,
-                        x_bounds, u_bounds,
-                        x0, cost_t,
-                        finalCostFunction, dynamic,
-                        constraints, aleas);
+    modelSDP = StochDynProgModel(TF, x_bounds, u_bounds,
+                                x0, cost_t,
+                                finalCostFunction, dynamic,
+                                constraints, aleas);
 
     stateSteps = [1,1];
     controlSteps = [1,1];
@@ -400,8 +398,7 @@ facts("SDP algorithm") do
     paramsSDP = StochDynamicProgramming.SDPparameters(modelSDP, stateSteps,
                                                      controlSteps,
                                                      infoStruct,
-                                                     "Exact",
-                                                     monteCarloSize);
+                                                     "Exact");
 
     context("Compare StochDynProgModel constructors") do
 
@@ -416,6 +413,8 @@ facts("SDP algorithm") do
                                                                         cost_t,
                                                                         dynamic, aleas)
 
+        convertedSDPmodel = StochDynamicProgramming.SPmodel_to_SDPmodel(modelSDPPiecewise, paramsSDP)
+
         set_state_bounds(modelSDPLinear, x_bounds)
 
         test_costs = true
@@ -426,6 +425,7 @@ facts("SDP algorithm") do
         for t in 1:TF-1
             test_costs &= (modelSDPLinear.costFunctions(t,x,u,w)==modelSDP.costFunctions(t,x,u,w))
             test_costs &= (modelSDPPiecewise.costFunctions[1](t,x,u,w)==modelSDP.costFunctions(t,x,u,w))
+            test_costs &= (modelSDPPiecewise.costFunctions[1](t,x,u,w)==convertedSDPmodel.costFunctions(t,x,u,w))
         end
 
         @fact test_costs --> true
@@ -434,14 +434,46 @@ facts("SDP algorithm") do
 
     context("Solve and simulate using SDP") do
 
+        x = x0
         V_sdp = sdp_optimize(modelSDP, paramsSDP, false);
+        V_sdp2 = StochDynamicProgramming.sdp_solve_HD(modelSDP, paramsSDP, false);
+        V_sdp3 = StochDynamicProgramming.sdp_solve_DH(modelSDP, paramsSDP, false);
+
+        Vitp = StochDynamicProgramming.value_function_interpolation( modelSDP, V_sdp, 1)
+        Vitp2 = StochDynamicProgramming.value_function_interpolation( modelSDP, V_sdp2, 1)
+        Vitp3 = StochDynamicProgramming.value_function_interpolation( modelSDP, V_sdp3, 1)
+
+        v1 = Vitp[(1.1,1.1)...]
+        v2 = Vitp2[(1.1,1.1)...]
+        v3 = Vitp3[(1.1,1.1)...]
+
+        @fact v1 --> v2
+        @fact (v1<=v3) --> true
+
+        a,b = StochDynamicProgramming.generate_grid(modelSDP, paramsSDP)
+
+        x_bounds = modelSDP.xlim
+        x_steps = paramsSDP.stateSteps
+
+        u_bounds = modelSDP.ulim
+        u_steps = paramsSDP.controlSteps
+
+        @fact length(collect(a)) --> (x_bounds[1][2]-x_bounds[1][1]+x_steps[1])*(x_bounds[2][2]-x_bounds[2][1]+x_steps[2])/(x_steps[1]*x_steps[2])
+        @fact length(collect(b)) --> (u_bounds[1][2]-u_bounds[1][1]+u_steps[1])*(u_bounds[2][2]-u_bounds[2][1]+u_steps[2])/(u_steps[1]*u_steps[2])
+
+        ind = StochDynamicProgramming.index_from_variable(x, x_bounds, x_steps)
+        @fact get_value(modelSDP, paramsSDP, V_sdp2) --> V_sdp2[ind...,1]
 
         @fact size(V_sdp) --> (paramsSDP.stateVariablesSizes..., TF)
+        @fact V_sdp2[1,1,1] <= V_sdp3[1,1,1] --> true
 
         costs_sdp, stocks_sdp, controls_sdp = sdp_forward_simulation(modelSDP,
                                                                 paramsSDP,
                                                                 aleas_scen, x0,
                                                                 V_sdp, true )
+
+        @fact (get_control(modelSDP,paramsSDP,V_sdp3, 1, x)[1] >= CONTROL_MIN) --> true
+        @fact (get_control(modelSDP,paramsSDP,V_sdp3, 1, x)[1] >= CONTROL_MIN) --> true
 
         @fact size(stocks_sdp) --> (3,1,2)
         @fact size(controls_sdp) --> (2,1,2)

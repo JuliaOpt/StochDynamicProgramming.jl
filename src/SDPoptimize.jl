@@ -117,8 +117,51 @@ function generate_grid(model::SPModel, param::SDPparameters)
 end
 
 """
+Transform a general SPmondel into a StochDynProgModel
+
+Parameters:
+- model (SPmodel)
+    the model of the problem
+
+- param (SDPparameters)
+    the parameters of the problem
+
+
+Returns :
+- sdpmodel : (StochDynProgModel)
+    the corresponding StochDynProgModel
+"""
+function SPmodel_to_SDPmodel(model::SPModel, param::SDPparameters)
+
+    function zero_fun(x)
+        return 0
+    end
+
+    if isa(model,PiecewiseLinearCostSPmodel)||isa(model,LinearDynamicLinearCostSPmodel)
+        function cons_fun(t,x,u,w)
+            test = true
+            for i in 1:model.dimStates
+                test &= (x[i]>=model.xlim[i][1])&(x[i]<=model.xlim[i][2])
+            end
+            return test
+        end
+        if in(:finalCostFunction,fieldnames(model))
+            SDPmodel = StochDynProgModel(model, model.finalCostFunction, cons_fun)
+        else
+            SDPmodel = StochDynProgModel(model, zero_fun, cons_fun)
+        end
+    elseif isa(model,StochDynProgModel)
+        SDPmodel = model
+    else
+        error("cannot build StochDynProgModel from current SPmodel. You need to implement
+        a new StochDynProgModel constructor.")
+    end
+    return(SDPmodel)
+end
+
+"""
 Value iteration algorithm to compute optimal value functions in
-the Decision Hazard (DH) case
+the Decision Hazard (DH) as well as the Hazard Decision (HD) case
 
 Parameters:
 - model (SPmodel)
@@ -137,7 +180,47 @@ Returns :
     of the system at each time step
 
 """
-function sdp_solve_DH(model::SPModel,
+function sdp_optimize(model::SPModel,
+                  param::SDPparameters,
+                  display=true::Bool)
+
+    SDPmodel = SPmodel_to_SDPmodel(model, param)
+
+    #Display start of the algorithm in DH and HD cases
+    if (param.infoStructure == "DH")
+        V = sdp_solve_DH(SDPmodel, param, display)
+    elseif (param.infoStructure == "HD")
+        V = sdp_solve_HD(SDPmodel, param, display)
+    else
+        error("param.infoStructure is neither 'DH' nor 'HD'")
+    end
+
+    return V
+end
+
+
+"""
+Value iteration algorithm to compute optimal value functions in
+the Decision Hazard (DH) case
+
+Parameters:
+- model (StochDynProgModel)
+    the DPSPmodel of our problem
+
+- param (SDPparameters)
+    the parameters for the SDP algorithm
+
+- display (Bool)
+    the output display or verbosity parameter
+
+
+Returns :
+- value_functions (Array)
+    the vector representing the value functions as functions of the state
+    of the system at each time step
+
+"""
+function sdp_solve_DH(model::StochDynProgModel,
                   param::SDPparameters,
                   display=true::Bool)
 
@@ -202,10 +285,10 @@ function sdp_solve_DH(model::SPModel,
                 end
 
                 for w = 1:sampling_size
-
                     w_sample = samples[:, w]
                     proba = probas[w]
                     next_state = model.dynamics(t, x, u, w_sample)
+
 
                     if model.constraints(t, next_state, u, w_sample)
 
@@ -243,7 +326,7 @@ Value iteration algorithm to compute optimal value functions in
 the Hazard Decision (HD) case
 
 Parameters:
-- model (SPmodel)
+- model (StochDynProgModel)
     the DPSPmodel of our problem
 
 - param (SDPparameters)
@@ -259,7 +342,7 @@ Returns :
     of the system at each time step
 
 """
-function sdp_solve_HD(model::SPModel,
+function sdp_solve_HD(model::StochDynProgModel,
                   param::SDPparameters,
                   display=true::Bool)
 
@@ -288,8 +371,8 @@ function sdp_solve_HD(model::SPModel,
     end
 
     if display
-            println("Starting stochastic dynamic programming hazard decision computation")
-        end
+        println("Starting stochastic dynamic programming hazard decision computation")
+    end
 
     #Loop over time
     for t = (TF-1):-1:1
@@ -307,6 +390,10 @@ function sdp_solve_HD(model::SPModel,
             count_admissible_w = 0.
 
                 #Tuning expectation computation parameters
+            if param.expectation_computation!="MonteCarlo" && param.expectation_computation!="Exact"
+                warn("param.expectation_computation should be 'MonteCarlo' or 'Exact'. Defaulted to 'exact'")
+                param.expectation_computation="Exact"
+            end
             if (param.expectation_computation=="MonteCarlo")
                 sampling_size = param.monteCarloSize
                 samples = [sampling(law,t) for i in 1:sampling_size]
@@ -320,7 +407,7 @@ function sdp_solve_HD(model::SPModel,
             #Compute expectation
             for w in 1:sampling_size
                 admissible_u_w_count = 0
-                best_V_x_w = 0.
+                best_V_x_w = Inf
                 next_V_x_w = Inf
                 w_sample = samples[:, w]
                 proba = probas[w]
@@ -347,7 +434,6 @@ function sdp_solve_HD(model::SPModel,
                 expected_V += proba*best_V_x_w
                 count_admissible_w += (admissible_u_w_count>0)*proba
             end
-
             if (count_admissible_w>0.)
                 expected_V = expected_V / count_admissible_w
             end
@@ -359,8 +445,7 @@ function sdp_solve_HD(model::SPModel,
 end
 
 """
-Value iteration algorithm to compute optimal value functions in
-the Decision Hazard (DH) as well as the Hazard Decision (HD) case
+Get the optimal value of the problem from the optimal Bellman Function
 
 Parameters:
 - model (SPmodel)
@@ -369,30 +454,155 @@ Parameters:
 - param (SDPparameters)
     the parameters for the SDP algorithm
 
-- display (Bool)
-    the output display or verbosity parameter
-
+- V (Array{Float64})
+    the Bellman Functions
 
 Returns :
-- value_functions (Array)
-    the vector representing the value functions as functions of the state
-    of the system at each time step
-
+- V(x0) (Float64)
 """
-function sdp_optimize(model::SPModel,
-                  param::SDPparameters,
-                  display=true::Bool)
-
-    #Display start of the algorithm in DH and HD cases
-    if (param.infoStructure == "DH")
-        V = sdp_solve_DH(model, param, display)
-    else
-        V = sdp_solve_HD(model, param, display)
-    end
-
-    return V
+function get_value(model::SPModel,param::SDPparameters,V::Array{Float64})
+    ind_x0 = real_index_from_variable(model.initialState, model.xlim, param.stateSteps)
+    Vi = value_function_interpolation(model, V, 1)
+    return Vi[ind_x0...,1]
 end
 
+"""
+Get the optimal control at time t knowing the state of the system in the decision hazard case
+
+Parameters:
+- model (SPmodel)
+    the DPSPmodel of our problem
+
+- param (SDPparameters)
+    the parameters for the SDP algorithm
+
+- V (Array{Float64})
+    the Bellman Functions
+
+- t (int)
+    the time step
+
+- x (Array)
+    the state variable
+
+Returns :
+- V(x0) (Float64)
+"""
+function get_control(model::SPModel,param::SDPparameters,V::Array{Float64}, t::Int64, x::Array)
+
+    SDPmodel = SPmodel_to_SDPmodel(model, param)
+
+    product_controls = product([SDPmodel.ulim[i][1]:param.controlSteps[i]:SDPmodel.ulim[i][2] for i in 1:SDPmodel.dimControls]...)
+
+    law = SDPmodel.noises
+    best_control = tuple()
+    Vitp = value_function_interpolation(SDPmodel, V, t+1)
+
+    u_bounds = SDPmodel.ulim
+    x_bounds = SDPmodel.xlim
+    x_steps = param.stateSteps
+
+    best_V = Inf
+
+    for u in product_controls
+
+        count_admissible_w = 0.
+        current_V = 0.
+
+        if (param.expectation_computation=="MonteCarlo")
+            sampling_size = param.monteCarloSize
+            samples = [sampling(law,t) for i in 1:sampling_size]
+            probas = (1/sampling_size)
+        else
+            sampling_size = law[t].supportSize
+            samples = law[t].support[:]
+            probas = law[t].proba
+        end
+
+        for w = 1:sampling_size
+
+            w_sample = samples[w]
+            proba = probas[w]
+
+            next_state = SDPmodel.dynamics(t, x, u, w_sample)
+
+            if SDPmodel.constraints(t, next_state, u, w_sample)
+                ind_next_state = real_index_from_variable(next_state, x_bounds, x_steps)
+                next_V = Vitp[ind_next_state...]
+                current_V += proba *(SDPmodel.costFunctions(t, x, u, w_sample) + next_V)
+                count_admissible_w = count_admissible_w + proba
+            end
+        end
+        current_V = current_V/count_admissible_w
+        if (current_V < best_V)&(count_admissible_w>0)
+            best_control = u
+            best_V = current_V
+        end
+    end
+
+    return best_control
+end
+
+"""
+Get the optimal control at time t knowing the state of the system in the hazard decision case
+
+Parameters:
+- model (SPmodel)
+    the DPSPmodel of our problem
+
+- param (SDPparameters)
+    the parameters for the SDP algorithm
+
+- V (Array{Float64})
+    the Bellman Functions
+
+- t (int)
+    the time step
+
+- x (Array)
+    the state variable
+
+- w (Array)
+the alea realization
+
+Returns :
+- V(x0) (Float64)
+"""
+function get_control(model::SPModel,param::SDPparameters,V::Array{Float64}, t::Int64, x::Array, w::Array)
+
+    SDPmodel = SPmodel_to_SDPmodel(model, param)
+
+    product_controls = product([SDPmodel.ulim[i][1]:param.controlSteps[i]:SDPmodel.ulim[i][2] for i in 1:SDPmodel.dimControls]...)
+
+    law = SDPmodel.noises
+    best_control = tuple()
+    Vitp = value_function_interpolation(SDPmodel, V, t+1)
+
+    u_bounds = SDPmodel.ulim
+    x_bounds = SDPmodel.xlim
+    x_steps = param.stateSteps
+
+    best_V = Inf
+
+    for u = product_controls
+
+        next_state = SDPmodel.dynamics(t, x, u, w)
+
+        if SDPmodel.constraints(t, next_state, u, w)
+            ind_next_state = real_index_from_variable(next_state, x_bounds, x_steps)
+            next_V = Vitp[ind_next_state...]
+            current_V = SDPmodel.costFunctions(t, x, u, w) + next_V
+            if (current_V < best_V)
+                best_control = u
+                best_state = SDPmodel.dynamics(t, x, u, w)
+                best_V = current_V
+            end
+        end
+
+    end
+
+    return best_control
+end
 
 """
 Simulation of optimal control given an initial state and an alea scenario
@@ -490,10 +700,10 @@ function sdp_forward_simulation(model::SPModel,
 
                     next_state = model.dynamics(t, x, u, w_sample)
 
-                    if model.constraints(t, next_state, u, scenario[t])
+                    if model.constraints(t, next_state, u, w_sample)
                         ind_next_state = real_index_from_variable(next_state, x_bounds, x_steps)
                         next_V = Vitp[ind_next_state...]
-                        current_V += proba *(model.costFunctions(t, x, u, scenario[t]) + next_V)
+                        current_V += proba *(model.costFunctions(t, x, u, w_sample) + next_V)
                         count_admissible_w = count_admissible_w + proba
                     end
                 end
