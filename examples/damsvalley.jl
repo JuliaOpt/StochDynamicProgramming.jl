@@ -65,20 +65,20 @@ function solve_determinist_problem()
     m = Model(solver=SOLVER)
 
 
-    @defVar(m,  VOLUME_MIN  <= x1[1:N_STAGES]  <= VOLUME_MAX)
-    @defVar(m,  VOLUME_MIN  <= x2[1:N_STAGES]  <= VOLUME_MAX)
-    @defVar(m,  CONTROL_MIN <= u1[1:N_STAGES-1]  <= CONTROL_MAX)
-    @defVar(m,  CONTROL_MIN <= u2[1:N_STAGES-1]  <= CONTROL_MAX)
+    @variable(m,  VOLUME_MIN  <= x1[1:N_STAGES]  <= VOLUME_MAX)
+    @variable(m,  VOLUME_MIN  <= x2[1:N_STAGES]  <= VOLUME_MAX)
+    @variable(m,  CONTROL_MIN <= u1[1:N_STAGES-1]  <= CONTROL_MAX)
+    @variable(m,  CONTROL_MIN <= u2[1:N_STAGES-1]  <= CONTROL_MAX)
 
-    @setObjective(m, Min, sum{COST[i]*(u1[i] + u2[i]), i = 1:N_STAGES})
+    @objective(m, Min, sum{COST[i]*(u1[i] + u2[i]), i = 1:N_STAGES})
 
     for i in 1:N_STAGES-1
-        @addConstraint(m, x1[i+1] - x1[i] + u1[i] - alea_year[i] == 0)
-        @addConstraint(m, x2[i+1] - x2[i] + u2[i] - u1[i] == 0)
+        @constraint(m, x1[i+1] - x1[i] + u1[i] - alea_year[i] == 0)
+        @constraint(m, x2[i+1] - x2[i] + u2[i] - u1[i] == 0)
     end
 
-    @addConstraint(m, x1[1] == X0[1])
-    @addConstraint(m, x2[1] == X0[2])
+    @constraint(m, x1[1] == X0[1])
+    @constraint(m, x2[1] == X0[2])
 
     status = solve(m)
     println(status)

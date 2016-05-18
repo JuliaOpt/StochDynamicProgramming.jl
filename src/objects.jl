@@ -11,6 +11,15 @@ include("noises.jl")
 abstract SPModel
 
 
+type PolyhedralFunction
+    #function defined by max_k betas[k] + lambdas[k,:]*x
+    betas::Vector{Float64}
+    lambdas::Array{Float64,2} #lambdas[k,:] is the subgradient
+    # number of cuts:
+    numCuts::Int64
+end
+
+
 type LinearDynamicLinearCostSPmodel <: SPModel
     # problem dimension
     stageNumber::Int64
@@ -28,18 +37,28 @@ type LinearDynamicLinearCostSPmodel <: SPModel
     dynamics::Function
     noises::Vector{NoiseLaw}
 
-    function LinearDynamicLinearCostSPmodel(nstage, ubounds, x0, cost, dynamic, aleas)
+    finalCost
+
+    function LinearDynamicLinearCostSPmodel(nstage, ubounds, x0, cost, dynamic, aleas, Vfinal=nothing)
 
         dimStates = length(x0)
         dimControls = length(ubounds)
         dimNoises = length(aleas[1].support[:, 1])
+
+        # First step: process terminal costs.
+        # If not specified, default value is null function
+        if isa(Vfinal, Function) || isa(Vfinal, PolyhedralFunction)
+            Vf = Vfinal
+        else
+            Vf = PolyhedralFunction(zeros(1), zeros(1, dimStates), 1)
+        end
 
         xbounds = []
         for i = 1:dimStates
             push!(xbounds, (-Inf, Inf))
         end
 
-        return new(nstage, dimControls, dimStates, dimNoises, xbounds, ubounds, x0, cost, dynamic, aleas)
+        return new(nstage, dimControls, dimStates, dimNoises, xbounds, ubounds, x0, cost, dynamic, aleas, Vf)
     end
 end
 
@@ -60,17 +79,24 @@ type PiecewiseLinearCostSPmodel <: SPModel
     costFunctions::Vector{Function}
     dynamics::Function
     noises::Vector{NoiseLaw}
+    finalCost
 
-    function PiecewiseLinearCostSPmodel(nstage, ubounds, x0, costs, dynamic, aleas)
+    function PiecewiseLinearCostSPmodel(nstage, ubounds, x0, costs, dynamic, aleas, Vfinal=nothing)
         dimStates = length(x0)
         dimControls = length(ubounds)
         dimNoises = length(aleas[1].support[:, 1])
+
+        if isa(Vfinal, Function) || isa(Vfinal, PolyhedralFunction)
+            Vf = Vfinal
+        else
+            Vf = PolyhedralFunction(zeros(1), zeros(1, dimStates), 1)
+        end
 
         xbounds = []
         for i = 1:dimStates
             push!(xbounds, (-Inf, Inf))
         end
-        return new(nstage, dimControls, dimStates, dimNoises, xbounds, ubounds, x0, costs, dynamic, aleas)
+        return new(nstage, dimControls, dimStates, dimNoises, xbounds, ubounds, x0, costs, dynamic, aleas, Vf)
     end
 end
 
@@ -196,13 +222,6 @@ function set_max_iterations(param::SDDPparameters, n_iter::Int)
 end
 
 
-type PolyhedralFunction
-    #function defined by max_k betas[k] + lambdas[k,:]*x
-    betas::Vector{Float64}
-    lambdas::Array{Float64,2} #lambdas[k,:] is the subgradient
-    # number of cuts:
-    numCuts::Int64
-end
 
 
 type NextStep

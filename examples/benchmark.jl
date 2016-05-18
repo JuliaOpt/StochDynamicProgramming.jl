@@ -51,23 +51,23 @@ function solve_anticipative_problem(model, scenario)
     m = Model(solver=SOLVER)
 
 
-    @defVar(m,  model.xlim[1][1]  <= x1[1:(N_STAGES)]  <= model.xlim[1][2])
-    @defVar(m,  model.xlim[2][1]  <= x2[1:(N_STAGES)]  <= model.xlim[2][2])
-    @defVar(m,  model.ulim[1][1] <= u1[1:N_STAGES-1]  <= model.ulim[1][2])
-    @defVar(m,  model.ulim[2][1] <= u2[1:N_STAGES-1]  <= model.ulim[2][2])
+    @variable(m,  model.xlim[1][1]  <= x1[1:(N_STAGES)]  <= model.xlim[1][2])
+    @variable(m,  model.xlim[2][1]  <= x2[1:(N_STAGES)]  <= model.xlim[2][2])
+    @variable(m,  model.ulim[1][1] <= u1[1:N_STAGES-1]  <= model.ulim[1][2])
+    @variable(m,  model.ulim[2][1] <= u2[1:N_STAGES-1]  <= model.ulim[2][2])
 
-    @setObjective(m, Min, sum{COST[i]*(u1[i] + u2[i]), i = 1:N_STAGES-1})
+    @objective(m, Min, sum{COST[i]*(u1[i] + u2[i]), i = 1:N_STAGES-1})
 
     for i in 1:N_STAGES-1
-        @addConstraint(m, x1[i+1] - x1[i] + u1[i] - scenario[i] == 0)
-        @addConstraint(m, x2[i+1] - x2[i] + u2[i] - u1[i] == 0)
+        @constraint(m, x1[i+1] - x1[i] + u1[i] - scenario[i] == 0)
+        @constraint(m, x2[i+1] - x2[i] + u2[i] - u1[i] == 0)
     end
 
-    @addConstraint(m, x1[1] == model.initialState[1])
-    @addConstraint(m, x2[1] == model.initialState[2])
+    @constraint(m, x1[1] == model.initialState[1])
+    @constraint(m, x2[1] == model.initialState[2])
 
     status = solve(m)
-    return getObjectiveValue(m)
+    return getobjectivevalue(m)
 end
 
 

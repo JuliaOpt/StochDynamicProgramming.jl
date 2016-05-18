@@ -123,6 +123,8 @@ facts("SDDP algorithm: 1D case") do
         V, pbs = solve_SDDP(model, params, 0)
         @fact typeof(V) --> Vector{StochDynamicProgramming.PolyhedralFunction}
         @fact typeof(pbs) --> Vector{JuMP.Model}
+        @fact length(pbs) --> n_stages - 1
+        @fact length(V) --> n_stages
 
         # Test if the first subgradient has the same dimension as state:
         @fact length(V[1].lambdas[1, :]) --> model.dimStates
@@ -176,6 +178,18 @@ facts("SDDP algorithm: 1D case") do
         isactive2 = StochDynamicProgramming.is_cut_relevant(model, 2, vt, params.solver)
         @fact isactive1 --> true
         @fact isactive2 --> false
+    end
+
+    # Test definition of final cost with a JuMP.Model:
+    context("Final cost") do
+        function fcost(model, m)
+            alpha = getVar(m, :alpha)
+            @addConstraint(m, alpha == 0.)
+        end
+        # Store final cost in model:
+        model.finalCost = fcost
+        V, pbs = solve_SDDP(model, params, 0)
+        V, pbs = solve_SDDP(model, params, 0, V)
     end
 
     context("Piecewise linear cost") do

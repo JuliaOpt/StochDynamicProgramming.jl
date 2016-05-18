@@ -65,17 +65,17 @@ function solve_determinist_problem()
     println(alea_year)
     m = Model(solver=SOLVER)
 
-    @defVar(m,  0           <= x[1:N_STAGES]  <= 100)
-    @defVar(m,  0.          <= u[1:N_STAGES-1]  <= 7)
-    @defVar(m,  0.          <= s[1:N_STAGES-1]  <= 7)
+    @variable(m,  0           <= x[1:N_STAGES]  <= 100)
+    @variable(m,  0.          <= u[1:N_STAGES-1]  <= 7)
+    @variable(m,  0.          <= s[1:N_STAGES-1]  <= 7)
 
-    @setObjective(m, Min, sum{COST[i]*u[i], i = 1:N_STAGES-1})
+    @objective(m, Min, sum{COST[i]*u[i], i = 1:N_STAGES-1})
 
     for i in 1:(N_STAGES-1)
-        @addConstraint(m, x[i+1] - x[i] + u[i] + s[i] - alea_year[i] == 0)
+        @constraint(m, x[i+1] - x[i] + u[i] + s[i] - alea_year[i] == 0)
     end
 
-    @addConstraint(m, x[1] .==X0)
+    @constraint(m, x[1] .==X0)
 
     status = solve(m)
     println(status)

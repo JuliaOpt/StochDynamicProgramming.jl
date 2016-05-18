@@ -37,9 +37,9 @@ function extensive_formulation(model,
 
     #Define the variables for the extensive formulation
     #At each node, we have as many variables as nodes
-    @defVar(mod,  u[t=1:T,n=1:DIM_CONTROL*N[t+1]])
-    @defVar(mod,  x[t=1:T+1,n=1:DIM_STATE*N[t]])
-    @defVar(mod,  c[t=1:T,n=1:laws[t].supportSize*N[t]])
+    @variable(mod,  u[t=1:T,n=1:DIM_CONTROL*N[t+1]])
+    @variable(mod,  x[t=1:T+1,n=1:DIM_STATE*N[t]])
+    @variable(mod,  c[t=1:T,n=1:laws[t].supportSize*N[t]])
 
 
     #Computes the total probability of each node from the conditional probabilities
@@ -57,24 +57,24 @@ function extensive_formulation(model,
     #Instantiate the problem creating dynamic constraint at each node
     for t = 1 : (T)
         for n = 1 : N[t]
-            @addConstraint(mod,[x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE] .>= [model.xlim[k][1] for k = 1:DIM_STATE])
-            @addConstraint(mod,[x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE] .<= [model.xlim[k][2] for k = 1:DIM_STATE])
+            @constraint(mod,[x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE] .>= [model.xlim[k][1] for k = 1:DIM_STATE])
+            @constraint(mod,[x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE] .<= [model.xlim[k][2] for k = 1:DIM_STATE])
             for xi = 1 : laws[t].supportSize
                 m = (n-1)*laws[t].supportSize+xi
 
                 #Add bounds constraint on the control
-                @addConstraint(mod,[u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL] .>= [model.ulim[k][1] for k = 1:DIM_CONTROL])
-                @addConstraint(mod,[u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL] .<= [model.ulim[k][2] for k = 1:DIM_CONTROL])
+                @constraint(mod,[u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL] .>= [model.ulim[k][1] for k = 1:DIM_CONTROL])
+                @constraint(mod,[u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL] .<= [model.ulim[k][2] for k = 1:DIM_CONTROL])
 
                 #Add dynamic constraints
-                @addConstraint(mod,
+                @constraint(mod,
                 [x[t+1,DIM_STATE*(m-1)+k] for k = 1:DIM_STATE] .== model.dynamics(t,
                                                                                     [x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE],
                                                                                     [u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL],
                                                                                     laws[t].support[xi]))
 
                 #Add constraints to define the cost at each node
-                @addConstraint(mod,
+                @constraint(mod,
                 c[t,m] == model.costFunctions(t,
                                                 [x[t,DIM_STATE*(n-1)+k] for k = 1:DIM_STATE],
                                                 [u[t,DIM_CONTROL*(m-1)+k] for k = 1:DIM_CONTROL],
@@ -84,18 +84,18 @@ function extensive_formulation(model,
     end
 
     #Initial state
-    @addConstraint(mod, [x[1,k] for k = 1:DIM_STATE] .== X_init)
+    @constraint(mod, [x[1,k] for k = 1:DIM_STATE] .== X_init)
 
 
     #Define the objective of the function
-    @setObjective(mod, Min, sum{ sum{proba[t][laws[t].supportSize*(n-1)+k]*c[t,laws[t].supportSize*(n-1)+k],k = 1:laws[t].supportSize} , t = 1:T, n=1:div(N[t+1],laws[t].supportSize)})
+    @objective(mod, Min, sum{ sum{proba[t][laws[t].supportSize*(n-1)+k]*c[t,laws[t].supportSize*(n-1)+k],k = 1:laws[t].supportSize} , t = 1:T, n=1:div(N[t+1],laws[t].supportSize)})
 
     status = solve(mod)
 
     solved = (status == :Optimal)
 
     if solved
-        return getObjectiveValue(mod), status
+        return getobjectivevalue(mod), status
     else
         return -1., status
     end
