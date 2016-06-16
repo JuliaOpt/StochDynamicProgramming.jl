@@ -56,19 +56,12 @@ function solve_one_step_one_alea(model,
     # Update value of w:
     setvalue(w, xi)
 
-    # If this is the first call to the solver, value-to-go are approximated
-    # with null function:
-    if init
-        @constraint(m, alpha >= 0)
-    end
     # Update constraint x == xt
     for i in 1:model.dimStates
         JuMP.setRHS(m.ext[:cons][i], xt[i])
     end
 
-
     status = solve(m)
-
     solved = (status == :Optimal)
 
     if solved

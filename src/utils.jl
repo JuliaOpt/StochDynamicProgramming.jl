@@ -111,6 +111,21 @@ end
 
 
 """
+Generate a random state.
+
+# Arguments
+* `model::SPModel`:
+
+# Return
+`Vector{Float64}`, shape=`(model.dimStates,)`
+
+"""
+function get_random_state(model)
+    return [model.xlim[i][1] + rand()*(model.xlim[i][2] - model.xlim[i][1]) for i in 1:model.dimStates]
+end
+
+
+"""
 Estimate the upper bound with a distribution of costs
 
 # Description
