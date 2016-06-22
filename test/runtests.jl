@@ -8,6 +8,7 @@
 
 
 using StochDynamicProgramming
+using SDPutils
 using Distributions, Clp, FactCheck, JuMP
 
 
@@ -117,7 +118,7 @@ facts("SDDP algorithm: 1D case") do
     noise_scenarios = simulate_scenarios(model.noises,params.forwardPassNumber)
 
     sddp_costs = 0
-    
+
     context("Unsolvable extensive formulation") do
         model_ef = StochDynamicProgramming.LinearDynamicLinearCostSPmodel(n_stages, u_bounds,
                                                                    x0, cost, dynamic, laws)
@@ -125,7 +126,7 @@ facts("SDDP algorithm: 1D case") do
         set_state_bounds(model_ef, x_bounds_ef)
         @fact_throws extensive_formulation(model_ef, params)
     end
-    
+
     context("Linear cost") do
         # Compute bellman functions with SDDP:
         V, pbs = solve_SDDP(model, params, 0)
@@ -323,8 +324,8 @@ facts("Indexation for SDP") do
     var = [0.4, 3.7, 1.9]
     vart = [0.42, 3.78, 1.932]
 
-    ind = StochDynamicProgramming.index_from_variable(var, bounds, steps)
-    ind2 = StochDynamicProgramming.real_index_from_variable(vart, bounds, steps)
+    ind = SDPutils.index_from_variable(var, bounds, steps)
+    ind2 = SDPutils.real_index_from_variable(vart, bounds, steps)
 
 
     @fact ind --> (4,51,141)
@@ -502,13 +503,14 @@ facts("SDP algorithm") do
             @fact costs_sdp2[1] --> costs_sdp
 
             x = x0
-            V_sdp = solve_DP(modelSDP, paramsSDP, false);
-            V_sdp2 = StochDynamicProgramming.sdp_solve_HD(modelSDP, paramsSDP, false);
-            V_sdp3 = StochDynamicProgramming.sdp_solve_DH(modelSDP, paramsSDP, false);
+            V_sdp2 = StochDynamicProgramming.sdp_compute_value_functions(modelSDP, paramsSDP, false);
+            paramsSDP.infoStructure = "DH"
+            V_sdp3 = StochDynamicProgramming.sdp_compute_value_functions(modelSDP, paramsSDP, false);
+            paramsSDP.infoStructure = "HD"
 
-            Vitp = StochDynamicProgramming.value_function_interpolation( modelSDP, V_sdp, 1)
-            Vitp2 = StochDynamicProgramming.value_function_interpolation( modelSDP, V_sdp2, 1)
-            Vitp3 = StochDynamicProgramming.value_function_interpolation( modelSDP, V_sdp3, 1)
+            Vitp = StochDynamicProgramming.value_function_interpolation( modelSDP.dimStates, V_sdp, 1)
+            Vitp2 = StochDynamicProgramming.value_function_interpolation( modelSDP.dimStates, V_sdp2, 1)
+            Vitp3 = StochDynamicProgramming.value_function_interpolation( modelSDP.dimStates, V_sdp3, 1)
 
             v1 = Vitp[(1.1,1.1)...]
             v2 = Vitp2[(1.1,1.1)...]
@@ -537,7 +539,7 @@ facts("SDP algorithm") do
             @fact length(collect(a)) --> (x_bounds[1][2]-x_bounds[1][1]+x_steps[1])*(x_bounds[2][2]-x_bounds[2][1]+x_steps[2])/(x_steps[1]*x_steps[2])
             @fact length(collect(b)) --> (u_bounds[1][2]-u_bounds[1][1]+u_steps[1])*(u_bounds[2][2]-u_bounds[2][1]+u_steps[2])/(u_steps[1]*u_steps[2])
 
-            ind = StochDynamicProgramming.index_from_variable(x, x_bounds, x_steps)
+            ind = SDPutils.index_from_variable(x, x_bounds, x_steps)
             @fact get_bellman_value(modelSDP, paramsSDP, V_sdp2) --> V_sdp2[ind...,1]
 
             @fact size(V_sdp) --> (paramsSDP.stateVariablesSizes..., TF)

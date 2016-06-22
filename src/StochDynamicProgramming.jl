@@ -7,10 +7,12 @@
 # algorithm for multi-stage stochastic convex optimization problem
 # see TODO
 #############################################################################
+include("SDPutils.jl")
 
 module StochDynamicProgramming
 
 using JuMP, Distributions
+import SDPutils
 
 export solve_SDDP,
             NoiseLaw, simulate_scenarios,
