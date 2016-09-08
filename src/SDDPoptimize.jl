@@ -333,6 +333,8 @@ function initialize_value_functions(model::SPModel,
         V[end] = model.finalCost
         build_terminal_cost!(model, solverProblems[end], V[end])
     elseif isa(model.finalCost, Function)
+        # In this case, define a trivial value functions for final cost to avoid problem:
+        V[end] = PolyhedralFunction(zeros(1), zeros(1, model.dimStates), 1)
         model.finalCost(model, solverProblems[end])
     end
 
