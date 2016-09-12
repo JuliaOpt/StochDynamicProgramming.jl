@@ -115,6 +115,16 @@ facts("SDDP algorithm: 1D case") do
         @fact isactive2 --> false
     end
 
+    context("Quadratic regularization") do
+        params2 = StochDynamicProgramming.SDDPparameters(solver,
+                                                    passnumber=n_scenarios,
+                                                    gap=epsilon,
+                                                    max_iterations=max_iterations,
+                                                    rho0=1.)
+        #TODO: fix solver, as Clp cannot solve QP
+        @fact_throws solve_SDDP(model, params2, 0)
+    end
+
     # Test definition of final cost with a JuMP.Model:
     context("Final cost") do
         function fcost(model, m)
@@ -144,8 +154,7 @@ facts("SDDP algorithm: 1D case") do
                                                       u_bounds, x0,
                                                       cost,
                                                       dynamic, laws,
-                                                      nothing,nothing,nothing,
-                                                      controlCat)
+                                                      control_cat=controlCat)
         set_state_bounds(model2, x_bounds)
         @fact_throws solve_SDDP(model2, params, 0)
     end

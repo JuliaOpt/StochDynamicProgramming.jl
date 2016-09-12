@@ -76,14 +76,17 @@ function forward_simulations(model::SPModel,
             alea_t = collect(xi[t, k, :])
 
             callsolver += 1
+
             # Solve optimization problem corresponding to current position:
-            status, nextstep = solve_one_step_one_alea(
-                                        model,
-                                        param,
-                                        solverProblems[t],
-                                        t,
-                                        state_t,
-                                        alea_t)
+            if param.IS_ACCELERATED &&  ~isa(model.refTrajectories, Void)
+                xp = collect(model.refTrajectories[t+1, k, :])
+                status, nextstep = solve_one_step_one_alea(model, param,
+                                                           solverProblems[t], t, state_t, alea_t, xp)
+            else
+                status, nextstep = solve_one_step_one_alea(model, param,
+                                                           solverProblems[t], t, state_t, alea_t)
+            end
+
             # Check if the problem is effectively solved:
             if status
                 # Get the next position:

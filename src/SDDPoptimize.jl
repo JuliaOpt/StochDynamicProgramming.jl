@@ -40,6 +40,10 @@ function solve_SDDP(model::SPModel, param::SDDPparameters, verbose=0::Int64)
     if model.IS_SMIP && isa(param.MIPSOLVER, Void)
         error("MIP solver is not defined. Please set `param.MIPSOLVER`")
     end
+    (model.IS_SMIP && param.IS_ACCELERATED) && error("Acceleration of SMIP not supported")
+    (verbose > 0) && (model.IS_SMIP) && println("SMIP SDDP")
+    (verbose > 0) && (param.IS_ACCELERATED) && println("Acceleration: ON")
+
     # initialize value functions:
     V, problems = initialize_value_functions(model, param)
     (verbose > 0) && println("Initial value function loaded into memory.")
@@ -53,6 +57,8 @@ function solve_SDDP(model::SPModel, param::SDDPparameters, V::Vector{PolyhedralF
     if model.IS_SMIP && isa(param.MIPSOLVER, Void)
         error("MIP solver is not defined. Please set `param.MIPSOLVER`")
     end
+    (model.IS_SMIP && param.IS_ACCELERATED) && error("Acceleration of SMIP not supported")
+
     # First step: process value functions if hotstart is called
     problems = hotstart_SDDP(model, param, V)
     sddp_stats = run_SDDP!(model, param, V, problems, verbose)
@@ -94,10 +100,16 @@ function run_SDDP!(model::SPModel,
 
         ####################
         # Forward pass
+        # If acceleration is ON, need to build a new array of problem to
+        # avoid side effect:
+        problems_fp = (param.IS_ACCELERATED)? hotstart_SDDP(model, param, V):problems
         _, stockTrajectories,_,callsolver_forward = forward_simulations(model,
                             param,
-                            problems,
+                            problems_fp,
                             noise_scenarios)
+
+        # we store these trajectories in model:
+        model.refTrajectories = stockTrajectories
 
         ####################
         # Backward pass
@@ -141,6 +153,11 @@ function run_SDDP!(model::SPModel,
         push!(stats.exectime, toq())
         push!(stats.upper_bounds, upb)
 
+        if param.IS_ACCELERATED
+            # If accelerated, need to update penalization coefficient:
+            param.acceleration[:rho] *= param.acceleration[:alpha]
+        end
+
         if (verbose > 0) && (iteration_count%verbose==0)
             print("Pass number ", iteration_count)
             (upb < Inf) && print("\tUpper-bound: ", upb)
@@ -157,7 +174,7 @@ function run_SDDP!(model::SPModel,
 
         if param.compute_upper_bound == 0
             println("Estimate upper-bound with Monte-Carlo ...")
-            upb, costs = estimate_upper_bound(model, param, V, problems)
+            upb, costs = estimate_upper_bound(model, param, V, problems, param.monteCarloSize)
         end
 
         println("Estimation of upper-bound: ", round(upb,4),
