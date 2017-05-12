@@ -8,12 +8,7 @@
 
 include("noises.jl")
 
-if VERSION >= v"0.6.0-rc"
-    abstract type SPModel end
-else
-    abstract SPModel
-end
-
+@compat abstract type SPModel end
 
 type PolyhedralFunction
     #function defined by max_k betas[k] + lambdas[k,:]*x
