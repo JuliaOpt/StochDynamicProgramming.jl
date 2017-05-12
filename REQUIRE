@@ -4,3 +4,4 @@ Distributions
 ProgressMeter
 Interpolations
 Iterators
+Compat 0.18

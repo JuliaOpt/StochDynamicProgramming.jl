@@ -8,8 +8,7 @@
 
 include("noises.jl")
 
-abstract SPModel
-
+@compat abstract type SPModel end
 
 type PolyhedralFunction
     #function defined by max_k betas[k] + lambdas[k,:]*x
@@ -141,10 +140,17 @@ type StochDynProgModel <: SPModel
 end
 
 # Define alias for cuts pruning algorithm:
-typealias LevelOne Val{:LevelOne}
-typealias ExactPruning Val{:Exact}
-typealias Territory Val{:Exact_Plus}
-typealias NoPruning Val{:none}
+if VERSION >= v"0.6.0-rc"
+    const LevelOne =  Val{:LevelOne}
+    const ExactPruning  = Val{:Exact}
+    const Territory  = Val{:Exact_Plus}
+    const NoPruning  = Val{:none}
+else
+    typealias LevelOne Val{:LevelOne}
+    typealias ExactPruning Val{:Exact}
+    typealias Territory Val{:Exact_Plus}
+    typealias NoPruning Val{:none}
+end
 
 type SDDPparameters
     # Solver used to solve LP
