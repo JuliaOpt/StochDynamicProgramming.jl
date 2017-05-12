@@ -104,7 +104,7 @@ function estimate_upper_bound(model::SPModel, param::SDDPparameters,
                                 problem::Vector{JuMP.Model})
     costs = forward_simulations(model, param, problem, aleas)[1]
     # discard unvalid values:
-    costs = costs[isfinite(costs)]
+    costs = costs[isfinite.(costs)]
     μ = mean(costs)
     σ = std(costs)
     tol = upper_bound_confidence(costs, param.confidence_level)
