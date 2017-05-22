@@ -5,13 +5,13 @@
 #############################################################################
 # Compare different ways of solving a stock problem :
 # Min   E [\sum_{t=1}^TF c_t u_t]
-# s.t.    s_{t+1} = s_t + u_t - xi_t, s_0 given
-#         0 <= s_t <= 1
-#         u_min <= u_t <= u_max
-#         u_t choosen knowing xi_1 .. xi_t
+# s.t.    s_{t+1} = s_t + u_t - xi_t, s_0 given    # Stock dynamic equation
+#         0 <= s_t <= 1                            # Constraint on stock
+#         u_min <= u_t <= u_max                    # Constraint on control
+#         u_t choosen knowing xi_1 .. xi_t         # information constraint
 #############################################################################
 
-using StochDynamicProgramming, Clp
+using StochDynamicProgramming, Clp # or CPLEX 
 println("library loaded")
 
 run_sddp = true # false if you don't want to run sddp
@@ -26,7 +26,7 @@ SOLVER = ClpSolver() 			   # require "using Clp"
 
 # convergence test
 MAX_ITER = 10 # number of iterations of SDDP
-step = 0.01   # discretization step of SDP
+step = 0.01   # discretization step for SDP
 
 ######## Stochastic Model  Parameters  ########
 N_STAGES = 6              # number of stages of the SP problem

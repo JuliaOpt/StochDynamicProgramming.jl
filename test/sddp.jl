@@ -50,6 +50,10 @@ using Base.Test
                                                    prune_cuts=0)
 
     V = nothing
+    # test reshaping of bounds
+    @test StochDynamicProgramming.test_and_reshape_bounds(u_bounds,2,2,"control") == [(0.0,7.0) (0.0,7.0);(0.0,Inf) (0.0,Inf)]
+    @test_throws ErrorException StochDynamicProgramming.test_and_reshape_bounds(u_bounds,1,2,"control")
+
     model = StochDynamicProgramming.LinearSPModel(n_stages, u_bounds,
                                                   x0, cost, dynamic, laws)
 
