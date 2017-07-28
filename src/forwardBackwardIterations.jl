@@ -145,7 +145,7 @@ function forward_simulations(model::SPModel,
                 reg = get(regularizer)
                 xp = getincumbent(reg, t, k)
                 sol, ts = regularize(model, param, reg,
-                                                  solverProblems[t], t, state_t, alea_t, xp, verbosity)
+                                                  solverProblems[t], t, state_t, alea_t, xp,verbosity = verbosity)
             else
                 # switch between HD and DH info structure
                 if model.info == :HD
@@ -327,7 +327,8 @@ function compute_cuts_hd!(model::SPModel, param::SDDPparameters,
         sol, ts = solve_one_step_one_alea(model, param,
                                             solverProblems[t],
                                             t, state_t, alea_t,
-                                            relaxation=model.IS_SMIP)
+                                            relaxation=model.IS_SMIP,
+                                            verbosity=verbosity)
         push!(solvertime, ts)
 
         if sol.status

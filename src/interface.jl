@@ -67,6 +67,16 @@ type SDDPInterface
         return new(false, model, params, stats, stopcrit, pruner, regularization,
                    V, problems, verbosity,verbose_it)
     end
+
+    function SDDPInterface(model::SPModel,
+                        params::SDDPparameters;
+                        stopcrit::AbstractStoppingCriterion=IterLimit(params.max_iterations),
+                        prunalgo::AbstractCutPruningAlgo=CutPruners.AvgCutPruningAlgo(-1),
+                        regularization=nothing,
+                        verbosity::Int=2,
+                        verbose_it::Int=1)
+        return SDDPInterface(model,params,stopcrit,prunalgo,regularization=regularization,verbosity = verbosity,verbose_it=verbose_it)
+    end
 end
 
 
@@ -76,4 +86,3 @@ function initpruner(algo, n_stages, n_dim)
 end
 
 isregularized(sddp::SDDPInterface) = !isnull(sddp.regularizer)
-

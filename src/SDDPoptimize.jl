@@ -316,9 +316,9 @@ function build_model(model, param, t,verbosity::Int64=0)
     nw = model.dimNoises
 
     # define variables in JuMP:
-    @variable(m,  model.xlim[i][1] <= x[i=1:nx] <= model.xlim[i][2])
-    @variable(m,  model.xlim[i][1] <= xf[i=1:nx]<= model.xlim[i][2])
-    @variable(m,  model.ulim[i][1] <= u[i=1:nu] <=  model.ulim[i][2])
+    @variable(m,  model.xlim[i,t][1] <= x[i=1:nx] <= model.xlim[i,t][2])
+    @variable(m,  model.xlim[i,t][1] <= xf[i=1:nx]<= model.xlim[i,t][2])
+    @variable(m,  model.ulim[i,t][1] <= u[i=1:nu] <=  model.ulim[i,t][2])
     @variable(m, alpha)
 
     @variable(m, w[1:nw] == 0)
@@ -377,9 +377,9 @@ function build_model_dh(model, param, t, verbosity::Int64=0)
     ξ = collect(law[t].support[:, :])
     πp = law[t].proba
 
-    @variable(m, model.xlim[i][1] <= x[i=1:nx] <= model.xlim[i][2])
-    @variable(m, model.ulim[i][1] <= u[i=1:nu] <=  model.ulim[i][2])
-    @variable(m, model.xlim[i][1] <= xf[i=1:nx, j=1:ns]<= model.xlim[i][2])
+    @variable(m, model.xlim[i,t][1] <= x[i=1:nx] <= model.xlim[i,t][2])
+    @variable(m, model.ulim[i,t][1] <= u[i=1:nu] <=  model.ulim[i,t][2])
+    @variable(m, model.xlim[i,t][1] <= xf[i=1:nx, j=1:ns]<= model.xlim[i,t][2])
     @variable(m, alpha[1:ns])
 
     m.ext[:cons] = @constraint(m, state_constraint, x .== 0)
@@ -579,7 +579,9 @@ function get_lower_bound(model::SPModel, param::SDDPparameters,
                             V::Vector{PolyhedralFunction})
     return get_bellman_value(model, param, 1, V[1], model.initialState)
 end
-
+function get_lower_bound(sddp::SDDPInterface)
+    return lowerbound(sddp::SDDPInterface)
+end
 
 """
 Compute optimal control at point xt and time t.
@@ -641,3 +643,47 @@ function add_cuts_to_model!(model::SPModel, t::Int64, problem::JuMP.Model, V::Po
     problem.ext[:ncuts] = V.numCuts
 end
 
+"""
+Compute subgradient of the problem at time t and state x.
+
+# Arguments
+* `V::Vector{Polyhedral function}`:
+    Estimation of bellman function as Polyhedral function
+* `t::Int64`:
+    Timestep used to compute the derivative
+* `x::Vector{Float64}`:
+    State for which the derivative is computed
+
+# Return
+subgradient of the problem at time t and state x (Float64)
+"""
+function get_subgradient(V::Vector{PolyhedralFunction}, t::Int64, x::Vector{Int64})
+    return get_subgradient(V[t],x)
+end
+
+"""
+Compute subgradient of the problem at time t and state x.
+
+# Arguments
+* `Vt::PolyhedralFunction`:
+    Estimation of bellman function as Polyhedral function
+* `t::Int64`:
+    Timestep used to compute the subgradient
+* `x::Vector{Float64}`:
+    State for which the subgradient is computed
+
+# Return
+subgradient of the problem at time t and state x (Float64)
+"""
+function get_subgradient(Vt::PolyhedralFunction, x::Vector{Int64})
+    maxvalue = -Inf
+    index = 0
+    for i in 1:Vt.numCuts
+        lambda = vec(Vt.lambdas[i, :])
+        if Vt.betas[i] + dot(lambda, x) >= maxvalue
+            maxvalue = Vt.betas[i] + dot(lambda, x)
+            index = i
+        end
+    end
+return Vt.lambdas[index, :]
+end
