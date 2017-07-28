@@ -10,26 +10,30 @@
 
 
 type NoiseLaw
+    # Dimension of noise
+    dimNoises::Int64
     # Number of points in distribution:
     supportSize::Int64
-    # Position of points:
+    # Position of points (one column per point)
     support::Array{Float64,2}
     # Probabilities of points:
     proba::Vector{Float64}
 
-    function NoiseLaw(supportSize, support, proba)
+    function NoiseLaw(dimNoises, supportSize, support, proba)
+        dimNoises = convert(Int64,dimNoises)
         supportSize = convert(Int64,supportSize)
-        if ndims(support)==1
-            support = reshape(support,1,length(support))
-        end
+        
+        support, proba = reshaping_noise(support, proba)
 
-        if ndims(proba) == 2
-            proba = vec(proba)
-        elseif  ndims(proba) >= 2
-            proba = squeeze(proba,1)
-        end
+        if length(proba) !=  supportSize
+            error("The probability vector has not the same length as the support array")
+         end
 
-        return new(supportSize,support,proba)
+        if size(support) != (dimNoises,supportSize)
+            error("The support array has the wrong shape")
+         end
+
+        return new(dimNoises,supportSize,support,proba)
     end
 end
 
@@ -48,7 +52,22 @@ Generic constructor to instantiate NoiseLaw
 * `law::NoiseLaw`
 """
 function NoiseLaw(support, proba)
-    return NoiseLaw(length(proba), support, proba)
+    support, proba = reshaping_noise(support, proba)
+    (dimNoises,supportSize) = size(support)
+    return NoiseLaw(dimNoises,supportSize, support, proba)
+end
+
+function reshaping_noise(support, proba)
+    if ndims(support)==1
+        support = reshape(support,1,length(support))
+    end
+
+    if ndims(proba) == 2
+        proba = vec(proba)
+    elseif  ndims(proba) >= 2
+        proba = squeeze(proba,1)
+    end
+    return support, proba
 end
 
 

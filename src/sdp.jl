@@ -106,9 +106,9 @@ function build_sdpmodel_from_spmodel(model::SPModel)
     end
 
     if isa(model,LinearSPModel)
-        function cons_fun(t,x,u,w)
-            return true
-        end
+        
+        cons_fun(t,x,u,w) = true 
+        
         if in(:finalCostFunction,fieldnames(model))
             SDPmodel = StochDynProgModel(model, model.finalCostFunction, cons_fun)
         else
@@ -279,7 +279,6 @@ function get_bellman_value(model::SPModel, param::SDPparameters,
                             V::Union{SharedArray, Array})
     ind_x0 = SdpLoops.real_index_from_variable(model.initialState, model.xlim, param.stateSteps)
     Vi = value_function_interpolation(model.dimStates, V, 1)
-    println(ind_x0)
     return Vi[ind_x0...,1]
 end
 
