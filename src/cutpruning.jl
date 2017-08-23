@@ -41,9 +41,9 @@ end
 
 """Prune cuts with exact pruning."""
 function cleancuts!(sddp::SDDPInterface)
-    ub = [x[2] for x in sddp.spmodel.xlim]
-    lb = [x[1] for x in sddp.spmodel.xlim]
     for t in 1:sddp.spmodel.stageNumber-1
+        ub = [x[2] for x in sddp.spmodel.xlim[:, t]]
+        lb = [x[1] for x in sddp.spmodel.xlim[:, t]]
         exactpruning!(sddp.pruner[t], sddp.params.SOLVER, ub=ub, lb=lb)
     end
 end

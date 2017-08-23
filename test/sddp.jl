@@ -1,64 +1,18 @@
 ################################################################################
 # Test SDDP functions
 ################################################################################
-using StochDynamicProgramming, JuMP, Clp, CutPruners
+
+
+include("framework.jl")
 using Base.Test
 
 # Test SDDP with a one dimensional stock:
 @testset "SDDP algorithm: 1D case" begin
     solver = ClpSolver()
 
-    # SDDP's tolerance:
-    epsilon = .05
-    # maximum number of iterations:
-    max_iterations = 2
-    # number of scenarios in forward and backward pass:
-    n_scenarios = 10
-    # number of aleas:
-    n_aleas = 5
-    # number of stages:
-    n_stages = 3
-
-    # define dynamic:
-    function dynamic(t, x, u, w)
-        return [x[1] - u[1] - u[2] + w[1]]
-    end
-    # define cost:
-    function cost(t, x, u, w)
-        return -u[1]
-    end
-
-    # Generate probability laws:
-    laws = Vector{NoiseLaw}(n_stages)
-    proba = 1/n_aleas*ones(n_aleas)
-    for t=1:n_stages
-        laws[t] = NoiseLaw([0, 1, 3, 4, 6], proba)
-    end
-
-    # set initial position:
-    x0 = [10.]
-    # set bounds on state:
-    x_bounds = [(0., 100.)]
-    # set bounds on control:
-    u_bounds = [(0., 7.), (0., Inf)]
-
-    # Instantiate parameters of SDDP:
-    param = StochDynamicProgramming.SDDPparameters(solver,
-                                                   passnumber=n_scenarios,
-                                                   gap=epsilon,
-                                                   max_iterations=max_iterations,
-                                                   prune_cuts=0)
-
-    V = nothing
-    model = StochDynamicProgramming.LinearSPModel(n_stages, u_bounds,
-                                                  x0, cost, dynamic, laws)
-
-    set_state_bounds(model, x_bounds)
-    # Test error if bounds are not well specified:
-    @test_throws ErrorException set_state_bounds(model, [(0,1), (0,1)])
-
-    # Generate scenarios for forward simulations:
-    noise_scenarios = simulate_scenarios(model.noises,param.forwardPassNumber)
+    # test reshaping of bounds
+    @test StochDynamicProgramming.test_and_reshape_bounds(u_bounds,2,2,"control") == [(0.0,7.0) (0.0,7.0);(0.0,Inf) (0.0,Inf)]
+    @test_throws ErrorException StochDynamicProgramming.test_and_reshape_bounds(u_bounds,1,2,"control")
 
     sddp_costs = 0
 
@@ -101,7 +55,7 @@ using Base.Test
 
         # Test display:
         param.compute_ub = 0
-        sddp = solve_SDDP(model, param, V, 2)
+        sddp = solve_SDDP(model, param, V, 1)
     end
 
     @testset "Value functions calculation" begin
@@ -119,16 +73,33 @@ using Base.Test
         @test mean(sddp_costs) ≈ mean(sddp_costs2)
     end
 
+    # FIXME : correct solverQP
+    # @testset "Quadratic regularization" begin
+    #     param.SOLVER = solverQP
+    #     regularization=SDDPRegularization(1., .99)
+    #     sddp = solve_SDDP(model, param, 0,regularization=regularization)
+    #     V0 = StochDynamicProgramming.get_lower_bound(sddp)
+    #     #@test isa(V0, Float64)
+    #
+    #     @test_throws ErrorException solve_SDDP(model, param2, 0,
+    #                                            regularization=SDDPRegularization(1., .99))
+    # end
+
     @testset "Decision-Hazard" begin
-        model_dh = StochDynamicProgramming.LinearSPModel(n_stages, u_bounds,
-                                                      x0, cost, dynamic, laws,
-                                                      info=:DH)
-        set_state_bounds(model_dh, x_bounds)
-        param_dh = StochDynamicProgramming.SDDPparameters(solver,
-                                                       passnumber=1,
-                                                       gap=0.001,
-                                                       max_iterations=10)
-        sddp_dh = solve_SDDP(model_dh, param_dh, 1)
+
+           model_dh = StochDynamicProgramming.LinearSPModel(n_stages, u_bounds,
+
+                                                         x0, cost, dynamic, laws,
+
+                                                         info=:DH)
+
+           set_state_bounds(model_dh, x_bounds)
+
+           param_dh = StochDynamicProgramming.SDDPparameters(solver,
+                                                          passnumber=1,
+                                                          gap=0.001,
+                                                          max_iterations=10)
+           sddp_dh = solve_SDDP(model_dh, param_dh, 1)
     end
 
     @testset "Cut-pruning" begin
@@ -157,13 +128,14 @@ using Base.Test
                                                     max_iterations=max_iterations)
         #TODO: fix solver, as Clp cannot solve QP
         @test_throws ErrorException solve_SDDP(model, param2, 0,
-                                               regularization=SDDPRegularization(1., .99))
+                                                regularization=SDDPRegularization(1., .99))
     end
+
 
     # Test definition of final cost with a JuMP.Model:
     @testset "Final cost" begin
         function fcost(model, m)
-            alpha = m[:alpha]
+            alpha = getindex(m, :alpha)
             @constraint(m, alpha == 0.)
         end
         # Store final cost in model:
@@ -182,17 +154,21 @@ using Base.Test
         sddp = solve_SDDP(model, param, 0)
     end
 
-    @testset "SMIP" begin
-        controlCat = [:Bin, :Cont]
-        u_bounds = [(0., 1.), (0., Inf)]
-        model2 = StochDynamicProgramming.LinearSPModel(n_stages,
-                                                      u_bounds, x0,
-                                                      cost,
-                                                      dynamic, laws,
-                                                      control_cat=controlCat)
-        set_state_bounds(model2, x_bounds)
-        @test_throws ErrorException solve_SDDP(model2, param, 0)
-    end
+    #FIXME correct MILP solver
+    # @testset "SMIP" begin
+    #     controlCat = [:Bin, :Cont]
+    #     u_bounds = [(0., 1.), (0., Inf)]
+    #     model2 = StochDynamicProgramming.LinearSPModel(n_stages,
+    #                                                   u_bounds, x0,
+    #                                                   cost,
+    #                                                   dynamic, laws,
+    #                                                   control_cat=controlCat)
+    #     set_state_bounds(model2, x_bounds)
+    #     param.MIPSOLVER = solverMILP
+    #
+    #     #solve_SDDP(model2, param, 0)
+    #     @test_throws ErrorException solve_SDDP(model2, param, 0)
+    # end
 
     @testset "Stopping criterion" begin
         # Compute upper bound every %% iterations:
@@ -220,7 +196,6 @@ using Base.Test
         @test V[1].lambdas == Vdump[1].lambdas
     end
 
-
     #= @testset "Compare parameters" begin =#
     #=     paramDDP = [param for i in 1:3] =#
     #=     scenarios = StochDynamicProgramming.simulate_scenarios(laws, 1000) =#
@@ -231,7 +206,7 @@ end
 
 # Test SDDP with a two-dimensional stock:
 @testset "SDDP algorithm: 2D case" begin
-    solver = ClpSolver()
+    solver = solverLP
 
     # SDDP's tolerance:
     epsilon = .05
@@ -327,4 +302,3 @@ end
         @test V[1].lambdas == Vdump[1].lambdas
     end
 end
-
